@@ -1,0 +1,4766 @@
+import SwiftUI
+import FirebaseFirestore
+
+struct AddClientView: View {
+    @Binding var client: Client
+    var isEditing: Bool
+    var onSave: (Client) -> Void
+    var onCancel: () -> Void
+
+    @State private var clubOptions: [String] = []
+    @State private var showingPositionPicker = false
+    @State private var selectedPositions: [String: Bool] = [
+        "Tor": false,
+        "Innenverteidigung rechts": false,
+        "Innenverteidigung links": false,
+        "Aussenverteidiger rechts": false,
+        "Aussenverteidiger links": false,
+        "Defensives Mittelfeld 6": false,
+        "Zentrales Mittelfeld 8": false,
+        "Offensives Mittelfeld 10": false,
+        "Mittelfeld rechts": false,
+        "Mittelfeld links": false,
+        "Aussenstürmer rechts": false,
+        "Aussenstürmer links": false,
+        "Mittelstürmer": false
+    ]
+    @State private var nationalities: [String] = []
+
+    private var leagues: [String] {
+        if client.geschlecht == "männlich" {
+            return ["1. Bundesliga", "2. Bundesliga", "Regionalliga", "Serie A", "Serie B", "Premier League", "EFL Championship", "Super League CH", "Challenge League CH", "1. Bundesliga AUT", "La Liga", "MLS"]
+        } else {
+            return ["1. Bundesliga", "2. Bundesliga", "Regionalliga", "WSL CH", "FA WSL 1", "FA WSL 2", "NWSL", "ÖFB Frauen Bundesliga", "Serie A", "Serie B", "Primera Division SPA"]
+        }
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Klientendaten")) {
+                    Picker("Typ", selection: $client.typ) {
+                        Text("Spieler").tag("Spieler")
+                        Text("Spielerin").tag("Spielerin")
+                        Text("Trainer").tag("Trainer")
+                        Text("Co-Trainer").tag("Co-Trainer")
+                    }
+                    .pickerStyle(.menu)
+
+                    TextField("Vorname", text: $client.vorname)
+                    TextField("Nachname", text: $client.name)
+                    DatePicker("Geburtsdatum", selection: Binding(
+                        get: { client.geburtsdatum ?? Date() },
+                        set: { client.geburtsdatum = $0 }
+                    ), displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+
+                    Picker("Geschlecht", selection: $client.geschlecht) {
+                        Text("männlich").tag("männlich")
+                        Text("weiblich").tag("weiblich")
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: client.geschlecht) { _ in
+                        client.liga = nil // Zurücksetzen der Liga bei Geschlechtsänderung
+                        loadOptions() // Neu laden der Vereinsliste bei Geschlechtsänderung
+                    }
+
+                    Picker("Liga", selection: $client.liga) {
+                        Text("Keine Liga").tag(String?.none)
+                        ForEach(leagues, id: \.self) { league in
+                            Text(league).tag(String?.some(league))
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Verein", selection: $client.vereinID) {
+                        Text("Kein Verein").tag(String?.none)
+                        ForEach(clubOptions, id: \.self) { club in
+                            Text(club).tag(String?.some(club))
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    // Eingabefeld für mehrere Nationalitäten
+                    TextField("Nationalitäten (durch Komma getrennt)", text: Binding(
+                        get: { nationalities.joined(separator: ", ") },
+                        set: { nationalities = $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+                    ))
+                    .onChange(of: nationalities) { newValue in
+                        client.nationalitaet = newValue.isEmpty ? nil : newValue
+                    }
+
+                    if client.typ == "Trainer" || client.typ == "Co-Trainer" {
+                        TextField("Lizenz", text: Binding(
+                            get: { client.lizenz ?? "" },
+                            set: { client.lizenz = $0.isEmpty ? nil : $0 }
+                        ))
+                    }
+
+                    if client.typ == "Spieler" || client.typ == "Spielerin" {
+                        Section(header: Text("Positionen")) {
+                            Button(action: {
+                                showingPositionPicker = true
+                            }) {
+                                Text(client.positionFeld?.isEmpty ?? true ? "Positionen auswählen" : client.positionFeld!.joined(separator: ", "))
+                                    .foregroundColor(client.positionFeld?.isEmpty ?? true ? .gray : .black)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .sheet(isPresented: $showingPositionPicker) {
+                            PositionPickerView(selectedPositions: $selectedPositions, onDone: {
+                                updateClientPositions()
+                                showingPositionPicker = false
+                            })
+                        }
+
+                        TextField("Schuhgröße", value: Binding(
+                            get: { client.schuhgroesse ?? 0 },
+                            set: { client.schuhgroesse = $0 == 0 ? nil : $0 }
+                        ), format: .number)
+                        TextField("Schuhmarke", text: Binding(
+                            get: { client.schuhmarke ?? "" },
+                            set: { client.schuhmarke = $0.isEmpty ? nil : $0 }
+                        ))
+                        Picker("Starker Fuß", selection: $client.starkerFuss) {
+                            Text("Nicht angegeben").tag(String?.none)
+                            Text("rechts").tag(String?.some("rechts"))
+                            Text("links").tag(String?.some("links"))
+                            Text("beide").tag(String?.some("beide"))
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+
+                Section(header: Text("Kontaktinformationen")) {
+                    TextField("Telefon", text: Binding(
+                        get: { client.kontaktTelefon ?? "" },
+                        set: { client.kontaktTelefon = $0.isEmpty ? nil : $0 }
+                    ))
+                    TextField("E-Mail", text: Binding(
+                        get: { client.kontaktEmail ?? "" },
+                        set: { client.kontaktEmail = $0.isEmpty ? nil : $0 }
+                    ))
+                    TextField("Adresse", text: Binding(
+                        get: { client.adresse ?? "" },
+                        set: { client.adresse = $0.isEmpty ? nil : $0 }
+                    ))
+                }
+            }
+            .navigationTitle(isEditing ? "Klient bearbeiten" : "Neuer Klient")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Abbrechen") { onCancel() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Speichern") { onSave(client) }
+                }
+            }
+            .onAppear {
+                loadOptions()
+                loadClientPositions()
+                // Initialisiere nationalities mit den vorhandenen Werten
+                if let nationalitaet = client.nationalitaet {
+                    nationalities = nationalitaet
+                }
+            }
+        }
+    }
+
+    private func loadOptions() {
+        FirestoreManager.shared.getClubs { result in
+            switch result {
+            case .success(let clubs):
+                DispatchQueue.main.async {
+                    self.clubOptions = clubs.filter { club in
+                        if client.geschlecht == "männlich" {
+                            return club.abteilung == "Männer" || club.abteilung == "gemischt"
+                        } else if client.geschlecht == "weiblich" {
+                            return club.abteilung == "Frauen" || club.abteilung == "gemischt"
+                        }
+                        return false
+                    }.map { $0.name }
+                    if let currentVereinID = client.vereinID, !clubOptions.contains(currentVereinID) {
+                        self.clubOptions.insert(currentVereinID, at: 0)
+                    }
+                }
+            case .failure:
+                DispatchQueue.main.async {
+                    self.clubOptions = []
+                }
+            }
+        }
+    }
+
+    private func loadClientPositions() {
+        if let positions = client.positionFeld {
+            for position in positions {
+                selectedPositions[position] = true
+            }
+        }
+    }
+
+    private func updateClientPositions() {
+        client.positionFeld = selectedPositions.filter { $0.value }.map { $0.key }
+    }
+}
+
+struct PositionPickerView: View {
+    @Binding var selectedPositions: [String: Bool]
+    var onDone: () -> Void
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Positionen auswählen")) {
+                    ForEach(Array(selectedPositions.keys).sorted(), id: \.self) { position in
+                        Toggle(position, isOn: Binding(
+                            get: { selectedPositions[position] ?? false },
+                            set: { selectedPositions[position] = $0 }
+                        ))
+                    }
+                }
+            }
+            .navigationTitle("Positionen")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Abbrechen") { onDone() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fertig") { onDone() }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    AddClientView(
+        client: .constant(Client(
+            id: nil,
+            typ: "Spieler",
+            name: "",
+            vorname: "",
+            geschlecht: "männlich",
+            vereinID: nil,
+            nationalitaet: [],
+            geburtsdatum: nil,
+            liga: nil,
+            profilbildURL: nil
+        )),
+        isEditing: false,
+        onSave: { _ in },
+        onCancel: {}
+    )
+}
+
+import SwiftUI
+
+struct AddClubView: View {
+    @Binding var club: Club
+    var onSave: (Club) -> Void
+    var onCancel: () -> Void
+
+    @State private var name: String
+    @State private var league: String = ""
+    @State private var abteilung: String = "" // Kein Standardwert
+    @State private var memberCount: String = ""
+    @State private var founded: String = ""
+    @State private var logoURL: String = ""
+    @State private var kontaktTelefon: String = ""
+    @State private var kontaktEmail: String = ""
+    @State private var adresse: String = ""
+    @State private var clients: String = ""
+    @State private var land: String = ""
+
+    init(club: Binding<Club>, onSave: @escaping (Club) -> Void, onCancel: @escaping () -> Void) {
+        self._club = club
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._name = State(initialValue: club.wrappedValue.name)
+        self._league = State(initialValue: club.wrappedValue.league ?? "")
+        self._abteilung = State(initialValue: club.wrappedValue.abteilung ?? "")
+        self._memberCount = State(initialValue: club.wrappedValue.memberCount.map(String.init) ?? "")
+        self._founded = State(initialValue: club.wrappedValue.founded ?? "")
+        self._logoURL = State(initialValue: club.wrappedValue.logoURL ?? "")
+        self._kontaktTelefon = State(initialValue: club.wrappedValue.kontaktTelefon ?? "")
+        self._kontaktEmail = State(initialValue: club.wrappedValue.kontaktEmail ?? "")
+        self._adresse = State(initialValue: club.wrappedValue.adresse ?? "")
+        self._clients = State(initialValue: club.wrappedValue.clients?.joined(separator: ", ") ?? "")
+        self._land = State(initialValue: club.wrappedValue.land ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Vereinsdaten")) {
+                    TextField("Name", text: $name)
+                    TextField("Liga", text: $league)
+                    Picker("Abteilung", selection: $abteilung) {
+                        Text("Bitte auswählen").tag("")
+                        Text("Männer").tag("Männer")
+                        Text("Frauen").tag("Frauen")
+                    }
+                    .pickerStyle(.menu)
+                    TextField("Mitgliederzahl", text: $memberCount)
+                        .keyboardType(.numberPad)
+                    TextField("Gegründet", text: $founded)
+                    TextField("Logo-URL", text: $logoURL)
+                    TextField("Telefon", text: $kontaktTelefon)
+                    TextField("E-Mail", text: $kontaktEmail)
+                    TextField("Adresse", text: $adresse)
+                    TextField("Klienten (durch Komma getrennt)", text: $clients)
+                    TextField("Land", text: $land)
+                }
+            }
+            .navigationTitle("Verein anlegen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        let updatedClub = Club(
+                            name: name,
+                            league: league.isEmpty ? nil : league,
+                            abteilung: abteilung.isEmpty ? nil : abteilung,
+                            kontaktTelefon: kontaktTelefon.isEmpty ? nil : kontaktTelefon,
+                            kontaktEmail: kontaktEmail.isEmpty ? nil : kontaktEmail,
+                            adresse: adresse.isEmpty ? nil : adresse,
+                            clients: clients.isEmpty ? nil : clients.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) },
+                            land: land.isEmpty ? nil : land,
+                            memberCount: Int(memberCount) ?? nil,
+                            founded: founded.isEmpty ? nil : founded,
+                            logoURL: logoURL.isEmpty ? nil : logoURL
+                        )
+                        onSave(updatedClub)
+                    }
+                    .disabled(abteilung.isEmpty || name.isEmpty) // Deaktiviere Button, wenn keine Abteilung oder kein Name ausgewählt
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    let club = Club(name: "Bayern München")
+    return AddClubView(club: .constant(club), onSave: { _ in }, onCancel: {})
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct AddFunktionärView: View {
+    @Binding var funktionär: Funktionär
+    var onSave: (Funktionär) -> Void
+    var onCancel: () -> Void
+
+    @State private var abteilung: String
+    @State private var vereinID: String?
+    @State private var clubOptions: [String] = []
+    @State private var kontaktTelefon: String = ""
+    @State private var kontaktEmail: String = ""
+    @State private var adresse: String = ""
+
+    init(funktionär: Binding<Funktionär>, onSave: @escaping (Funktionär) -> Void, onCancel: @escaping () -> Void) {
+        self._funktionär = funktionär
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._abteilung = State(initialValue: funktionär.wrappedValue.abteilung ?? "Männer")
+        self._vereinID = State(initialValue: funktionär.wrappedValue.vereinID)
+        self._kontaktTelefon = State(initialValue: funktionär.wrappedValue.kontaktTelefon ?? "")
+        self._kontaktEmail = State(initialValue: funktionär.wrappedValue.kontaktEmail ?? "")
+        self._adresse = State(initialValue: funktionär.wrappedValue.adresse ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Funktionärsdaten")) {
+                    TextField("Vorname", text: $funktionär.vorname)
+                    TextField("Nachname", text: $funktionär.name)
+                    Picker("Abteilung", selection: $abteilung) {
+                        Text("Männer").tag("Männer")
+                        Text("Frauen").tag("Frauen")
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(vereinID == nil) // Deaktiviere Abteilungsauswahl, wenn "Ohne Verein" gewählt ist
+                    Picker("Verein", selection: $vereinID) {
+                        Text("Ohne Verein").tag(String?.none)
+                        ForEach(clubOptions, id: \.self) { club in
+                            Text(club).tag(String?.some(club))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                Section(header: Text("Kontaktinformationen")) {
+                    TextField("Telefon", text: $kontaktTelefon)
+                        .onChange(of: kontaktTelefon) { newValue in
+                            funktionär.kontaktTelefon = newValue.isEmpty ? nil : newValue
+                        }
+                    TextField("E-Mail", text: $kontaktEmail)
+                        .onChange(of: kontaktEmail) { newValue in
+                            funktionär.kontaktEmail = newValue.isEmpty ? nil : newValue
+                        }
+                    TextField("Adresse", text: $adresse)
+                        .onChange(of: adresse) { newValue in
+                            funktionär.adresse = newValue.isEmpty ? nil : newValue
+                        }
+                }
+            }
+            .navigationTitle("Funktionär anlegen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        updateFunktionär() // Aktualisiere das funktionär-Objekt
+                        onSave(funktionär) // Übergebe das aktualisierte Objekt
+                    }
+                    .disabled(funktionär.vorname.isEmpty || funktionär.name.isEmpty || (vereinID != nil && abteilung.isEmpty))
+                }
+            }
+            .onAppear {
+                loadClubOptions()
+            }
+        }
+    }
+
+    private func loadClubOptions() {
+        FirestoreManager.shared.getClubs { result in
+            switch result {
+            case .success(let clubs):
+                DispatchQueue.main.async {
+                    self.clubOptions = clubs.map { $0.name }
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    print("Fehler beim Laden der Vereine: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func updateFunktionär() {
+        funktionär.abteilung = vereinID == nil ? nil : abteilung
+        funktionär.vereinID = vereinID
+        funktionär.kontaktTelefon = kontaktTelefon.isEmpty ? nil : kontaktTelefon
+        funktionär.kontaktEmail = kontaktEmail.isEmpty ? nil : kontaktEmail
+        funktionär.adresse = adresse.isEmpty ? nil : adresse
+    }
+}
+
+#Preview {
+    AddFunktionärView(
+        funktionär: .constant(Funktionär(
+            id: nil,
+            name: "",
+            vorname: "",
+            kontaktTelefon: nil,
+            kontaktEmail: nil,
+            adresse: nil,
+            clients: nil,
+            profilbildURL: nil,
+            geburtsdatum: nil
+        )),
+        onSave: { _ in },
+        onCancel: {}
+    )
+}
+
+import UIKit
+import Firebase
+
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        FirebaseApp.configure()
+        return true
+    }
+}
+
+import FirebaseAuth
+import FirebaseFirestore
+import Foundation
+
+enum UserRole: String, Codable {
+    case mitarbeiter = "Mitarbeiter"
+    case klient = "Klient"
+    case gast = "Gast"
+}
+
+class AuthManager: ObservableObject {
+    @Published var isLoggedIn = false
+    @Published var userRole: UserRole?
+    @Published var userEmail: String?
+    @Published var userID: String?
+    private var authHandle: AuthStateDidChangeListenerHandle?
+
+    init() {
+        authHandle = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
+            guard let self = self else { return }
+            if let user = user {
+                self.isLoggedIn = true
+                self.userEmail = user.email
+                self.userID = user.uid
+                self.loadUserRole(user.uid)
+            } else {
+                self.isLoggedIn = false
+                self.userRole = nil
+                self.userEmail = nil
+                self.userID = nil
+            }
+        }
+    }
+
+    func loadUserRole(_ uid: String) {
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).getDocument { [weak self] snapshot, error in
+            guard let self = self else { return }
+            if let error = error {
+                print("Fehler beim Laden der Rolle: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.userRole = .gast // Standardrolle bei Fehler
+                }
+                return
+            }
+            if let data = snapshot?.data(), let roleString = data["rolle"] as? String, let role = UserRole(rawValue: roleString) {
+                DispatchQueue.main.async {
+                    self.userRole = role
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.userRole = .gast // Standardrolle
+                }
+            }
+        }
+    }
+
+    func login(email: String, password: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        Auth.auth().signIn(withEmail: email, password: password) { [weak self] result, error in
+            guard let self = self else { return }
+            if let error = error {
+                completion(.failure(error))
+            } else if let user = result?.user {
+                self.userEmail = user.email
+                self.userID = user.uid
+                self.isLoggedIn = true
+                self.loadUserRole(user.uid)
+                completion(.success(()))
+            }
+        }
+    }
+
+    func signOut() {
+        do {
+            try Auth.auth().signOut()
+            DispatchQueue.main.async {
+                self.isLoggedIn = false
+                self.userRole = nil
+                self.userEmail = nil
+                self.userID = nil
+            }
+        } catch {
+            print("Logout fehlgeschlagen: \(error.localizedDescription)")
+        }
+    }
+
+    func register(email: String, password: String, role: UserRole, completion: @escaping (Result<Void, Error>) -> Void) {
+        Auth.auth().createUser(withEmail: email, password: password) { [weak self] result, error in
+            guard let self = self else { return }
+            if let error = error {
+                completion(.failure(error))
+            } else if let user = result?.user {
+                let db = Firestore.firestore()
+                db.collection("users").document(user.uid).setData([
+                    "email": email,
+                    "rolle": role.rawValue
+                ]) { error in
+                    if let error = error {
+                        completion(.failure(error))
+                    } else {
+                        self.userEmail = email
+                        self.userID = user.uid
+                        self.userRole = role
+                        self.isLoggedIn = true
+                        completion(.success(()))
+                    }
+                }
+            }
+        }
+    }
+
+    deinit {
+        if let handle = authHandle {
+            Auth.auth().removeStateDidChangeListener(handle)
+        }
+    }
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct ClientContactView: View {
+    @ObservedObject var authManager: AuthManager
+    @State private var clients: [Client] = []
+    @State private var selectedClient: Client?
+    @State private var searchText: String = ""
+    @State private var contactType: String = "Telefon"
+    @State private var contactTopic: String = "Besuch"
+    @State private var notes: String = ""
+    @Environment(\.dismiss) var dismiss
+
+    let contactTypes = ["Telefon", "Email", "Videocall", "Treffen"]
+    let contactTopics = ["Besuch", "Coaching", "Vertrag", "Problem", "Analyse", "Sonstiges"]
+
+    var filteredClients: [Client] {
+        if searchText.isEmpty {
+            return clients
+        } else {
+            return clients.filter { client in
+                "\(client.vorname) \(client.name)".lowercased().contains(searchText.lowercased())
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Klient auswählen")) {
+                    TextField("Suche nach Name", text: $searchText)
+                    Picker("Klient", selection: $selectedClient) {
+                        Text("Kein Klient ausgewählt").tag(Client?.none)
+                        ForEach(filteredClients, id: \.self) { client in // id: \.self für Hashable
+                            Text("\(client.vorname) \(client.name)")
+                                .tag(client as Client?)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                }
+
+                Section(header: Text("Kontaktdetails")) {
+                    Picker("Art des Kontakts", selection: $contactType) {
+                        ForEach(contactTypes, id: \.self) { type in
+                            Text(type).tag(type)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+
+                    Picker("Thema", selection: $contactTopic) {
+                        ForEach(contactTopics, id: \.self) { topic in
+                            Text(topic).tag(topic)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+
+                    TextField("Notizen", text: $notes, axis: .vertical)
+                        .lineLimit(5)
+                }
+            }
+            .navigationTitle("Klienten Kontakt")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        saveContact()
+                        dismiss()
+                    }
+                    .disabled(selectedClient == nil)
+                }
+            }
+            .onAppear {
+                loadClients()
+            }
+        }
+    }
+
+    private func loadClients() {
+        FirestoreManager.shared.getClients { result in
+            switch result {
+            case .success(let loadedClients):
+                DispatchQueue.main.async {
+                    self.clients = loadedClients
+                }
+            case .failure(let error):
+                print("Fehler beim Laden der Klienten: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func saveContact() {
+        guard let selectedClient = selectedClient, let employeeName = authManager.userEmail else { return }
+        let activity = Activity(
+            id: nil,
+            clientID: selectedClient.id ?? UUID().uuidString,
+            description: "\(contactType) - \(contactTopic): \(notes) (von \(employeeName))",
+            timestamp: Date()
+        )
+        FirestoreManager.shared.createActivity(activity: activity) { result in
+            switch result {
+            case .success:
+                print("Kontakt erfolgreich gespeichert")
+            case .failure(let error):
+                print("Fehler beim Speichern des Kontakts: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+#Preview {
+    ClientContactView(authManager: AuthManager())
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct ClientDetailView: View {
+    let client: Client
+    @State private var contracts: [Contract] = []
+    @State private var transfers: [Transfer] = []
+    @State private var errorMessage: String = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                // Begrüßung
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Willkommen, \(client.vorname) \(client.name)")
+                            .font(.title)
+                            .fontWeight(.bold)
+                    }
+                    Spacer()
+                }
+                .padding()
+
+                // Übersicht
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // Klienteninformationen
+                        Section(header: Text("Meine Daten").font(.headline)) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Typ: \(client.typ)")
+                                if let lizenz = client.lizenz {
+                                    Text("Lizenz: \(lizenz)")
+                                }
+                                if let positions = client.positionFeld, !positions.isEmpty {
+                                    Text("Positionen: \(positions.joined(separator: ", "))")
+                                }
+                                if let vereinID = client.vereinID {
+                                    Text("Verein: \(vereinID)")
+                                }
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                        }
+
+                        // Verträge
+                        Section(header: Text("Meine Verträge").font(.headline)) {
+                            if contracts.isEmpty {
+                                Text("Keine Verträge vorhanden.")
+                                    .foregroundColor(.gray)
+                            } else {
+                                ForEach(contracts) { contract in
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text("Verein: \(contract.vereinID ?? "Kein Verein")")
+                                        Text("Start: \(dateFormatter.string(from: contract.startDatum))")
+                                        Text("Ende: \(contract.endDatum.map { dateFormatter.string(from: $0) } ?? "Kein Ende")")
+                                        Text("Gehalt: \(contract.gehalt.map { String(format: "%.2f €", $0) } ?? "Keine")")
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                                }
+                            }
+                        }
+
+                        // Transfers
+                        Section(header: Text("Meine Transfers").font(.headline)) {
+                            if transfers.isEmpty {
+                                Text("Keine Transfers vorhanden.")
+                                    .foregroundColor(.gray)
+                            } else {
+                                ForEach(transfers) { transfer in
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text("Von: \(transfer.vonVereinID ?? "Kein Verein")")
+                                        Text("Zu: \(transfer.zuVereinID ?? "Kein Verein")")
+                                        Text("Datum: \(dateFormatter.string(from: transfer.datum))")
+                                        Text("Gebühr: \(transfer.gebuehr.map { String(format: "%.2f €", $0) } ?? "Keine")")
+                                    }
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(10)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .padding()
+                }
+
+                Spacer()
+            }
+            .navigationTitle("Klientendetails")
+            .onAppear {
+                loadClientData()
+            }
+        }
+    }
+
+    private func loadClientData() {
+        FirestoreManager.shared.getContracts { result in
+            switch result {
+            case .success(let contracts):
+                self.contracts = contracts.filter { $0.clientID == client.id }
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Verträge: \(error.localizedDescription)"
+            }
+        }
+
+        FirestoreManager.shared.getTransfers { result in
+            switch result {
+            case .success(let transfers):
+                self.transfers = transfers.filter { $0.clientID == client.id }
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Transfers: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}
+
+#Preview {
+    ClientDetailView(client: Client(
+        id: "1",
+        typ: "Spieler",
+        name: "Müller",
+        vorname: "Hans",
+        geschlecht: "männlich",
+        vereinID: "Verein1",
+        positionFeld: ["Stürmer"]
+    ))
+        .environmentObject(AuthManager())
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct ClientListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var clients: [Client] = []
+    @State private var errorMessage: String = ""
+    @State private var showingAddClientSheet = false
+    @State private var newClient = Client(
+        id: nil,
+        typ: "Spieler",
+        name: "",
+        vorname: "",
+        geschlecht: "männlich",
+        vereinID: nil,
+        nationalitaet: [],
+        geburtsdatum: nil,
+        liga: nil,
+        profilbildURL: nil
+    )
+    @State private var clubs: [Club] = [] // Für Vereinslogos
+    @State private var imageCache: [String: UIImage] = [:] // Cache für Vereinslogos
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(clients, id: \.self) { client in
+                    NavigationLink(destination: ClientView(client: client)) {
+                        HStack(spacing: 10) {
+                            // Vereinslogo
+                            if let vereinID = client.vereinID, let club = clubs.first(where: { $0.name == vereinID }), let logoURL = club.logoURL, let url = URL(string: logoURL), let cachedImage = imageCache[logoURL] {
+                                Image(uiImage: cachedImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                    .clipShape(Circle())
+                            } else {
+                                Image(systemName: "building.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                    .foregroundColor(.gray)
+                                    .clipShape(Circle())
+                                    .onAppear {
+                                        loadClubLogo(for: client.vereinID) // Korrigiert: client.vereinID
+                                    }
+                            }
+
+                            // Profilbild und Name
+                            if let profilbildURL = client.profilbildURL, let url = URL(string: profilbildURL), let cachedImage = imageCache[profilbildURL] {
+                                Image(uiImage: cachedImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                            } else {
+                                Image(systemName: "person.circle.fill")
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 40, height: 40)
+                                    .foregroundColor(.gray)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                                    .onAppear {
+                                        loadImage(for: client)
+                                    }
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(client.vorname) \(client.name)")
+                                    .font(.headline)
+                                    .scaleEffect(0.7)
+                                if let geburtsdatum = client.geburtsdatum {
+                                    Text(dateFormatter.string(from: geburtsdatum))
+                                        .font(.caption)
+                                }
+                                if let liga = client.liga {
+                                    Text(liga)
+                                        .font(.caption)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Text(client.typ == "Spieler" ? "♂" : "♀")
+                                .font(.system(size: 14))
+                                .foregroundColor(client.typ == "Spieler" ? .blue : .pink)
+                        }
+                        .padding(.vertical, 5)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteClient(client)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Klienten verwalten")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingAddClientSheet = true }) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddClientSheet) {
+                AddClientView(
+                    client: $newClient,
+                    isEditing: false,
+                    onSave: { updatedClient in
+                        FirestoreManager.shared.createClient(client: updatedClient) { result in
+                            switch result {
+                            case .success:
+                                loadClients()
+                                newClient = Client(
+                                    id: nil,
+                                    typ: "Spieler",
+                                    name: "",
+                                    vorname: "",
+                                    geschlecht: "männlich",
+                                    vereinID: nil,
+                                    nationalitaet: [],
+                                    geburtsdatum: nil,
+                                    liga: nil,
+                                    profilbildURL: nil
+                                )
+                            case .failure(let error):
+                                errorMessage = "Fehler beim Speichern: \(error.localizedDescription)"
+                            }
+                        }
+                        showingAddClientSheet = false
+                    },
+                    onCancel: {
+                        newClient = Client(
+                            id: nil,
+                            typ: "Spieler",
+                            name: "",
+                            vorname: "",
+                            geschlecht: "männlich",
+                            vereinID: nil,
+                            nationalitaet: [],
+                            geburtsdatum: nil,
+                            liga: nil,
+                            profilbildURL: nil
+                        )
+                        showingAddClientSheet = false
+                    }
+                )
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .onAppear {
+                loadClients()
+                loadClubs()
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private func loadClients() {
+        FirestoreManager.shared.getClients { result in
+            switch result {
+            case .success(let loadedClients):
+                clients = loadedClients
+                for client in loadedClients {
+                    if let profilbildURL = client.profilbildURL {
+                        loadImage(for: client)
+                    }
+                }
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Klienten: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func loadClubs() {
+        FirestoreManager.shared.getClubs { result in
+            switch result {
+            case .success(let loadedClubs):
+                clubs = loadedClubs
+                for club in loadedClubs {
+                    if let logoURL = club.logoURL {
+                        loadClubLogo(for: club.name)
+                    }
+                }
+            case .failure(let error):
+                print("Fehler beim Laden der Vereine: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func deleteClient(_ client: Client) {
+        guard let id = client.id else { return }
+        FirestoreManager.shared.deleteClient(clientID: id) { result in
+            switch result {
+            case .success:
+                loadClients()
+            case .failure(let error):
+                errorMessage = "Fehler beim Löschen des Klienten: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func loadImage(for client: Client) {
+        if let profilbildURL = client.profilbildURL, let url = URL(string: profilbildURL) {
+            URLSession.shared.dataTask(with: url) { data, response, error in
+                if let data = data, let image = UIImage(data: data) {
+                    DispatchQueue.main.async {
+                        self.imageCache[profilbildURL] = image
+                    }
+                }
+            }.resume()
+        }
+    }
+
+    private func loadClubLogo(for vereinID: String?) {
+        guard let vereinID = vereinID, let club = clubs.first(where: { $0.name == vereinID }), let logoURL = club.logoURL, let url = URL(string: logoURL) else { return }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let data = data, let image = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.imageCache[logoURL] = image
+                }
+            }
+        }.resume()
+    }
+}
+
+#Preview {
+    ClientListView()
+        .environmentObject(AuthManager())
+}
+
+import SwiftUI
+import FirebaseFirestore
+import FirebaseStorage
+
+struct ClientView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var client: Client
+    @State private var image: UIImage? = nil
+    @State private var showingImagePicker = false
+    @State private var showingEditSheet = false
+    @State private var errorMessage: String = ""
+    @State private var isLoading = false
+    @State private var navigateToContract = false
+    @State private var activities: [Activity] = []
+    @State private var club: Club? // Zustand für den geladenen Verein
+
+    init(client: Client) {
+        _client = State(initialValue: client)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                // Hauptinformationen in einer horizontalen Anordnung
+                HStack(spacing: 10) {
+                    // Profilbild und Bild-Button in einer vertikalen Anordnung
+                    VStack {
+                        if isLoading {
+                            ProgressView("Lade Bild...")
+                                .frame(width: 70, height: 70)
+                        } else if let image = image {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 70, height: 70)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 70, height: 70)
+                                .foregroundColor(.gray)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                        }
+
+                        // Bild hochladen-Button direkt unter dem Profilbild mit 60% Transparenz
+                        Button(action: { showingImagePicker = true }) {
+                            Image(systemName: "arrow.up.circle")
+                                .font(.system(size: 24))
+                                .foregroundColor(.blue)
+                                .opacity(0.4) // 60% Transparenz
+                        }
+                        .sheet(isPresented: $showingImagePicker) {
+                            ImagePicker(selectedImage: $image, isPresented: $showingImagePicker) { selectedImage in
+                                uploadImage(selectedImage)
+                            }
+                        }
+                    }
+
+                    // Länderflaggen und Abkürzungen
+                    VStack(alignment: .leading, spacing: 1) {
+                        if let nationalitaeten = client.nationalitaet, !nationalitaeten.isEmpty {
+                            ForEach(nationalitaeten, id: \.self) { nat in
+                                flagAndCode(for: nat)
+                            }
+                        } else {
+                            Text("Keine Nationalitäten")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // Geburtsdatum und Liga in einer vertikalen Anordnung mit Symbolen
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let geburtsdatum = client.geburtsdatum {
+                            HStack(spacing: 4) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                Text(dateFormatter.string(from: geburtsdatum))
+                                    .font(.headline)
+                                    .bold()
+                            }
+                        }
+                        if let liga = client.liga {
+                            HStack(spacing: 4) {
+                                Image(systemName: "tshirt")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                Text(liga)
+                                    .font(.headline)
+                                    .bold()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding()
+
+                // Vereinsname zentriert mit kleinem Logo davor
+                if let vereinID = client.vereinID {
+                    HStack {
+                        Spacer()
+                        if let club = club, let logoURL = club.logoURL, let url = URL(string: logoURL) {
+                            AsyncImage(url: url) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                    .clipShape(Circle())
+                            } placeholder: {
+                                Image(systemName: "building.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.trailing, 4)
+                        }
+                        Text(vereinID)
+                            .font(.headline)
+                            .bold()
+                        Spacer()
+                    }
+                    .padding(.bottom, 5)
+                }
+
+                // Bearbeiten-Button zentriert
+                HStack {
+                    Spacer()
+                    Button(action: { showingEditSheet = true }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16))
+                            .foregroundColor(.blue)
+                    }
+                    .sheet(isPresented: $showingEditSheet) {
+                        EditClientView(client: $client, onSave: { updatedClient in
+                            client = updatedClient
+                            FirestoreManager.shared.updateClient(client: updatedClient) { result in
+                                switch result {
+                                case .success:
+                                    print("Client erfolgreich aktualisiert")
+                                case .failure(let error):
+                                    errorMessage = "Fehler beim Speichern: \(error.localizedDescription)"
+                                }
+                            }
+                            showingEditSheet = false
+                        }, onCancel: {
+                            showingEditSheet = false
+                        })
+                    }
+                    Spacer()
+                }
+                .padding(.bottom)
+
+                Form {
+                    Section(header: Text("Klientendaten")) {
+                        labeledField(label: "Vertragslaufzeit", value: client.vertragBis.map { dateFormatter.string(from: $0) })
+                        labeledField(label: "Option", value: client.vertragsOptionen)
+                        labeledField(label: "Gehalt", value: client.gehalt.map { String(format: "%.2f €", $0) })
+                        labeledField(label: "Grösse", value: client.groesse.map { "\($0) cm" })
+                        labeledField(label: "Nationalmannschaft", value: client.nationalmannschaft)
+                        labeledField(label: "Positionen", value: client.positionFeld?.joined(separator: ", "))
+                        labeledField(label: "Schuhmarke", value: client.schuhmarke)
+                        labeledField(label: "Starker Fuß", value: client.starkerFuss)
+                    }
+
+                    Section(header: Text("Kontaktinformationen")) {
+                        labeledField(label: "Telefon", value: client.kontaktTelefon)
+                        labeledField(label: "E-Mail", value: client.kontaktEmail)
+                        labeledField(label: "Adresse", value: client.adresse)
+                    }
+
+                    Section(header: Text("Letzte Aktivitäten")) {
+                        if activities.isEmpty {
+                            Text("Keine Aktivitäten vorhanden.")
+                        } else {
+                            ForEach(activities) { activity in
+                                VStack(alignment: .leading) {
+                                    Text(activity.description)
+                                    Text(activity.timestamp, style: .date)
+                                        .font(.subheadline)
+                                }
+                            }
+                        }
+                    }
+
+                    Section {
+                        Button("Zum Vertrag") {
+                            if client.id != nil {
+                                navigateToContract = true
+                            } else {
+                                errorMessage = "Kein Client-ID verfügbar"
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+            .navigationTitle("\(client.vorname) \(client.name)\(calculateAge().map { ", \($0) Jahre" } ?? "")")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Text(genderSymbol)
+                        .font(.system(size: 14))
+                        .foregroundColor(client.typ == "Spieler" ? .blue : .pink)
+                }
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .onAppear {
+                loadImage()
+                loadActivities()
+                loadClub()
+            }
+            .navigationDestination(isPresented: $navigateToContract) {
+                if let clientID = client.id {
+                    ContractView(clientID: clientID)
+                } else {
+                    Text("Fehler: Kein Client-ID")
+                }
+            }
+        }
+    }
+
+    private func flagAndCode(for nationalitaet: String) -> some View {
+        let code = countryCode(for: nationalitaet) ?? "??"
+        let isCustomImage = (UIImage(named: code.lowercased()) != nil)
+        return HStack(spacing: 2) {
+            if isCustomImage {
+                Image(uiImage: UIImage(named: code.lowercased())!)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 12, height: 8)
+            } else {
+                Image(systemName: "flag")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 12, height: 8)
+                    .foregroundColor(.gray)
+            }
+            Text(code)
+                .font(.caption2)
+        }
+    }
+
+    private func countryCode(for nationalitaet: String) -> String? {
+        let countryMap: [String: String] = [
+            "Deutschland": "DE",
+            "Österreich": "AT",
+            "Schweiz": "CH",
+            "Frankreich": "FR",
+            "Italien": "IT",
+            "Spanien": "ES",
+            "England": "GB",
+            "USA": "US"
+        ]
+        return countryMap[nationalitaet]
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private var genderSymbol: String {
+        switch client.typ {
+        case "Spieler": return "♂"
+        case "Spielerin": return "♀"
+        default: return ""
+        }
+    }
+
+    private func calculateAge() -> Int? {
+        guard let birthDate = client.geburtsdatum else { return nil }
+        let calendar = Calendar.current
+        let now = Date()
+        let ageComponents = calendar.dateComponents([.year], from: birthDate, to: now)
+        return ageComponents.year
+    }
+
+    private func labeledField(label: String, value: String?) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+            Spacer()
+            Text(value ?? "")
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(value != nil ? Color(.systemGray6) : Color.clear)
+                .cornerRadius(4)
+                .foregroundColor(.black)
+        }
+    }
+
+    private func loadImage() {
+        isLoading = true
+        if let urlString = client.profilbildURL, let url = URL(string: urlString) {
+            URLSession.shared.dataTask(with: url) { data, _, _ in
+                if let data = data, let loadedImage = UIImage(data: data) {
+                    DispatchQueue.main.async {
+                        self.image = loadedImage
+                        isLoading = false
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.image = nil
+                        isLoading = false
+                    }
+                }
+            }.resume()
+        } else {
+            DispatchQueue.main.async {
+                self.image = nil
+                isLoading = false
+            }
+        }
+    }
+
+    private func uploadImage(_ selectedImage: UIImage) {
+        isLoading = true
+        guard let clientID = client.id else {
+            errorMessage = "Kein Client-ID verfügbar"
+            isLoading = false
+            return
+        }
+        FirestoreManager.shared.uploadProfileImage(documentID: clientID, image: selectedImage, collection: "profile_images") { result in
+            switch result {
+            case .success(let url):
+                client.profilbildURL = url
+                FirestoreManager.shared.updateClient(client: client) { result in
+                    DispatchQueue.main.async {
+                        isLoading = false
+                        if case .failure(let error) = result {
+                            errorMessage = "Fehler beim Speichern des Bildes: \(error.localizedDescription)"
+                        } else {
+                            loadImage()
+                        }
+                    }
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    isLoading = false
+                    errorMessage = "Fehler beim Hochladen des Bildes: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func loadActivities() {
+        guard let clientID = client.id else { return }
+        FirestoreManager.shared.getActivities(forClientID: clientID) { result in
+            switch result {
+            case .success(let loadedActivities):
+                DispatchQueue.main.async {
+                    self.activities = loadedActivities
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self.errorMessage = "Fehler beim Laden der Aktivitäten: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func loadClub() {
+        guard let vereinID = client.vereinID else { return }
+        FirestoreManager.shared.getClubs { result in
+            switch result {
+            case .success(let clubs):
+                if let matchingClub = clubs.first(where: { $0.name == vereinID }) {
+                    DispatchQueue.main.async {
+                        self.club = matchingClub
+                    }
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    self.errorMessage = "Fehler beim Laden des Vereins: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    // Definition von ImagePicker innerhalb der Datei
+    struct ImagePicker: UIViewControllerRepresentable {
+        @Binding var selectedImage: UIImage?
+        @Binding var isPresented: Bool
+        var onImageSelected: (UIImage) -> Void
+
+        func makeUIViewController(context: Context) -> UIImagePickerController {
+            let picker = UIImagePickerController()
+            picker.delegate = context.coordinator
+            picker.sourceType = .photoLibrary
+            return picker
+        }
+
+        func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(self)
+        }
+
+        class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+            let parent: ImagePicker
+
+            init(_ parent: ImagePicker) {
+                self.parent = parent
+            }
+
+            func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+                if let uiImage = info[.originalImage] as? UIImage {
+                    parent.selectedImage = uiImage
+                    parent.onImageSelected(uiImage)
+                }
+                parent.isPresented = false
+            }
+
+            func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+                parent.isPresented = false
+            }
+        }
+    }
+
+    // Definition von EditClientView innerhalb der Datei
+    struct EditClientView: View {
+        @Binding var client: Client
+        var onSave: (Client) -> Void
+        var onCancel: () -> Void
+
+        @State private var vorname: String = ""
+        @State private var name: String = ""
+        @State private var vereinID: String? = nil
+        @State private var liga: String = ""
+        @State private var vertragBis: Date = Date()
+        @State private var vertragsOptionen: String = ""
+        @State private var gehalt: String = ""
+        @State private var groesse: String = ""
+        @State private var nationalitaet: [String] = []
+        @State private var nationalmannschaft: String = ""
+        @State private var positionFeld: [String] = []
+        @State private var schuhmarke: String = ""
+        @State private var starkerFuss: String = ""
+        @State private var kontaktTelefon: String = ""
+        @State private var kontaktEmail: String = ""
+        @State private var adresse: String = ""
+        @State private var geburtsdatum: Date = Date()
+        @State private var clubOptions: [String] = []
+
+        var body: some View {
+            NavigationView {
+                Form {
+                    Section(header: Text("Klientendaten")) {
+                        TextField("Vorname", text: $vorname)
+                        TextField("Name", text: $name)
+                        DatePicker("Geburtsdatum", selection: $geburtsdatum, displayedComponents: .date)
+                        Picker("Verein", selection: $vereinID) {
+                            Text("Kein Verein").tag(String?.none)
+                            ForEach(clubOptions, id: \.self) { club in
+                                Text(club).tag(String?.some(club))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        TextField("Liga", text: $liga)
+                        DatePicker("Vertragslaufzeit", selection: $vertragBis, displayedComponents: .date)
+                        TextField("Vertragsoptionen", text: $vertragsOptionen)
+                        TextField("Gehalt (€)", text: $gehalt)
+                            .keyboardType(.decimalPad)
+                        TextField("Grösse (cm)", text: $groesse)
+                            .keyboardType(.numberPad)
+                        TextField("Nationalitäten (durch Komma getrennt)", text: Binding(
+                            get: { nationalitaet.joined(separator: ", ") },
+                            set: { nationalitaet = $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
+                        ))
+                        TextField("Nationalmannschaft", text: $nationalmannschaft)
+                        TextField("Positionen (durch Komma getrennt)", text: Binding(
+                            get: { positionFeld.joined(separator: ", ") },
+                            set: { positionFeld = $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
+                        ))
+                        TextField("Schuhmarke", text: $schuhmarke)
+                        Picker("Starker Fuß", selection: $starkerFuss) {
+                            Text("Nicht angegeben").tag("")
+                            Text("rechts").tag("rechts")
+                            Text("links").tag("links")
+                            Text("beide").tag("beide")
+                        }
+                        .pickerStyle(.menu)
+                    }
+
+                    Section(header: Text("Kontaktinformationen")) {
+                        TextField("Telefon", text: $kontaktTelefon)
+                        TextField("E-Mail", text: $kontaktEmail)
+                        TextField("Adresse", text: $adresse)
+                    }
+                }
+                .navigationTitle("Profil bearbeiten")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { onCancel() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Speichern") {
+                            updateClient()
+                            onSave(client)
+                        }
+                    }
+                }
+                .onAppear {
+                    loadClientData()
+                    loadClubOptions()
+                }
+            }
+        }
+
+        private func loadClientData() {
+            vorname = client.vorname
+            name = client.name
+            vereinID = client.vereinID
+            liga = client.liga ?? ""
+            vertragBis = client.vertragBis ?? Date()
+            vertragsOptionen = client.vertragsOptionen ?? ""
+            gehalt = client.gehalt != nil ? String(client.gehalt!) : ""
+            groesse = client.groesse != nil ? String(client.groesse!) : ""
+            nationalitaet = client.nationalitaet ?? []
+            nationalmannschaft = client.nationalmannschaft ?? ""
+            positionFeld = client.positionFeld ?? []
+            schuhmarke = client.schuhmarke ?? ""
+            starkerFuss = client.starkerFuss ?? ""
+            kontaktTelefon = client.kontaktTelefon ?? ""
+            kontaktEmail = client.kontaktEmail ?? ""
+            adresse = client.adresse ?? ""
+            geburtsdatum = client.geburtsdatum ?? Date()
+        }
+
+        private func loadClubOptions() {
+            FirestoreManager.shared.getClubs { result in
+                switch result {
+                case .success(let clubs):
+                    DispatchQueue.main.async {
+                        self.clubOptions = clubs.filter { club in
+                            if client.geschlecht == "männlich" {
+                                return club.abteilung == "Männer"
+                            } else if client.geschlecht == "weiblich" {
+                                return club.abteilung == "Frauen"
+                            }
+                            return false
+                        }.map { $0.name }
+                        if let currentVereinID = client.vereinID, !clubOptions.contains(currentVereinID) {
+                            self.clubOptions.insert(currentVereinID, at: 0)
+                        }
+                        self.vereinID = client.vereinID
+                    }
+                case .failure(let error):
+                    DispatchQueue.main.async {
+                        print("Fehler beim Laden der Vereine: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+
+        private func updateClient() {
+            client.vorname = vorname.isEmpty ? client.vorname : vorname
+            client.name = name.isEmpty ? client.name : name
+            client.vereinID = vereinID
+            client.liga = liga.isEmpty ? nil : liga
+            client.vertragBis = vertragBis
+            client.vertragsOptionen = vertragsOptionen.isEmpty ? nil : vertragsOptionen
+            client.gehalt = Double(gehalt) ?? nil
+            client.groesse = Int(groesse) ?? nil
+            client.nationalitaet = nationalitaet.isEmpty ? nil : nationalitaet
+            client.nationalmannschaft = nationalmannschaft.isEmpty ? nil : nationalmannschaft
+            client.positionFeld = positionFeld.isEmpty ? nil : positionFeld
+            client.schuhmarke = schuhmarke.isEmpty ? nil : schuhmarke
+            client.starkerFuss = starkerFuss.isEmpty ? nil : starkerFuss
+            client.kontaktTelefon = kontaktTelefon.isEmpty ? nil : kontaktTelefon
+            client.kontaktEmail = kontaktEmail.isEmpty ? nil : kontaktEmail
+            client.adresse = adresse.isEmpty ? nil : adresse
+            client.geburtsdatum = geburtsdatum
+        }
+    }
+}
+
+#Preview {
+    ClientView(client: Client(
+        id: "1",
+        typ: "Spieler",
+        name: "Müller",
+        vorname: "Thomas",
+        geschlecht: "männlich",
+        vereinID: "Bayern Munich",
+        nationalitaet: ["Deutschland", "Italien"],
+        geburtsdatum: Date().addingTimeInterval(-25 * 365 * 24 * 60 * 60),
+        liga: "1. Bundesliga",
+        vertragBis: Date().addingTimeInterval(365 * 24 * 60 * 60),
+        vertragsOptionen: "1 Jahr Verlängerung",
+        gehalt: 5000000.0,
+        schuhmarke: "Nike",
+        starkerFuss: "rechts",
+        groesse: 186,
+        positionFeld: ["Stürmer"],
+        nationalmannschaft: "Deutschland",
+        profilbildURL: nil
+    ))
+    .environmentObject(AuthManager())
+}
+
+import SwiftUI
+
+struct ClubListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var clubs: [Club] = []
+    @State private var errorMessage: String = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(clubs) { club in
+                    NavigationLink(destination: ClubView(club: .constant(club))) {
+                        Text(club.name)
+                    }
+                }
+            }
+            .navigationTitle("Vereine verwalten")
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .onAppear {
+                loadClubs()
+            }
+        }
+    }
+
+    private func loadClubs() {
+        FirestoreManager.shared.getClubs { result in
+            switch result {
+            case .success(let loadedClubs):
+                DispatchQueue.main.async {
+                    clubs = loadedClubs
+                }
+            case .failure(let error):
+                DispatchQueue.main.async {
+                    errorMessage = "Fehler beim Laden der Vereine: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    let club = Club(name: "Bayern München")
+    return ClubListView()
+        .environmentObject(AuthManager())
+}
+
+import SwiftUI
+
+struct ClubView: View {
+    @Binding var club: Club
+    @State private var showingEditSheet = false
+    @State private var logoImage: UIImage? = nil // Zustand für das geladene Bild
+    @State private var isLoadingImage = false // Zustand für den Ladevorgang
+    @State private var funktionäre: [Funktionär] = [] // Zustand für Funktionäre
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if isLoadingImage {
+                ProgressView("Lade Logo...")
+                    .frame(width: 100, height: 100)
+            } else if let image = logoImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "building.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 100)
+                    .foregroundColor(.gray)
+                    .clipShape(Circle())
+            }
+
+            Text(club.name)
+                .font(.title)
+                .bold()
+
+            if let league = club.league {
+                Text("Liga: \(league)")
+                    .font(.headline)
+            }
+            if let memberCount = club.memberCount {
+                Text("Mitglieder: \(memberCount)")
+                    .font(.headline)
+            }
+            if let founded = club.founded {
+                Text("Gegründet: \(founded)")
+                    .font(.headline)
+            }
+            if let kontaktTelefon = club.kontaktTelefon {
+                Text("Telefon: \(kontaktTelefon)")
+                    .font(.headline)
+            }
+            if let kontaktEmail = club.kontaktEmail {
+                Text("E-Mail: \(kontaktEmail)")
+                    .font(.headline)
+            }
+            if let adresse = club.adresse {
+                Text("Adresse: \(adresse)")
+                    .font(.headline)
+            }
+            if let land = club.land {
+                Text("Land: \(land)")
+                    .font(.headline)
+            }
+
+            // Anzeige der Funktionäre
+            Section(header: Text("Funktionäre")) {
+                if funktionäre.isEmpty {
+                    Text("Keine Funktionäre vorhanden.")
+                        .foregroundColor(.gray)
+                } else {
+                    ForEach(funktionäre) { funktionär in
+                        VStack(alignment: .leading) {
+                            Text("\(funktionär.vorname) \(funktionär.name)")
+                            if let abteilung = funktionär.abteilung {
+                                Text("Abteilung: \(abteilung)")
+                            }
+                        }
+                        .padding(.vertical, 5)
+                    }
+                }
+            }
+
+            Button(action: { showingEditSheet = true }) {
+                Text("Bearbeiten")
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .sheet(isPresented: $showingEditSheet) {
+                EditClubView(club: $club, onSave: { updatedClub in
+                    club = updatedClub
+                    FirestoreManager.shared.updateClub(updatedClub) { result in
+                        if case .failure(let error) = result {
+                            print("Fehler beim Aktualisieren des Vereins: \(error.localizedDescription)")
+                        }
+                    }
+                    showingEditSheet = false
+                }, onCancel: {
+                    showingEditSheet = false
+                })
+            }
+
+            Spacer()
+        }
+        .padding()
+        .navigationTitle(club.name)
+        .onAppear {
+            loadLogoImage()
+            loadFunktionäre()
+        }
+    }
+
+    init(club: Binding<Club>) {
+        self._club = club
+    }
+
+    private func loadLogoImage() {
+        isLoadingImage = true
+        if let logoURL = club.logoURL, let url = URL(string: logoURL) {
+            URLSession.shared.dataTask(with: url) { data, response, error in
+                if let data = data, let image = UIImage(data: data) {
+                    DispatchQueue.main.async {
+                        self.logoImage = image
+                        self.isLoadingImage = false
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.logoImage = nil
+                        self.isLoadingImage = false
+                    }
+                }
+            }.resume()
+        } else {
+            DispatchQueue.main.async {
+                self.logoImage = nil
+                self.isLoadingImage = false
+            }
+        }
+    }
+
+    private func loadFunktionäre() {
+        FirestoreManager.shared.getAgents { result in
+            switch result {
+            case .success(let loadedFunktionäre):
+                DispatchQueue.main.async {
+                    self.funktionäre = loadedFunktionäre.filter {
+                        $0.vereinID == club.name && $0.abteilung == club.abteilung
+                    }
+                }
+            case .failure(let error):
+                print("Fehler beim Laden der Funktionäre: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+#Preview {
+    let club = Club(name: "Bayern München", league: "1. Bundesliga", memberCount: 400000, founded: "1900")
+    ClubView(club: .constant(club))
+}
+
+import SwiftUI
+
+struct ContentView: View {
+    @EnvironmentObject var authManager: AuthManager
+
+    var body: some View {
+        if authManager.isLoggedIn {
+            ContentDashboardView()
+        } else {
+            LoginView()
+        }
+    }
+}
+
+struct ContentDashboardView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var clientCount = 0
+    @State private var contractCount = 0
+
+    var body: some View {
+        VStack {
+            Text("Willkommen, \(authManager.userEmail ?? "Gast")!")
+                .font(.title)
+                .padding()
+
+            Text("Rolle: \(authManager.userRole?.rawValue ?? "Unbekannt")")
+                .font(.subheadline)
+                .padding()
+
+            HStack {
+                VStack {
+                    Text("Klienten")
+                        .font(.headline)
+                    Text("\(clientCount)")
+                        .font(.title)
+                }
+                .padding()
+                .background(Color.gray.opacity(0.2))
+                .cornerRadius(8)
+
+                VStack {
+                    Text("Verträge")
+                        .font(.headline)
+                    Text("\(contractCount)")
+                        .font(.title)
+                }
+                .padding()
+                .background(Color.gray.opacity(0.2))
+                .cornerRadius(8)
+            }
+            .padding()
+
+            Button("Abmelden") {
+                authManager.signOut()
+            }
+            .padding()
+            .background(Color.red)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+
+            Spacer()
+        }
+        .onAppear {
+            // Beispielhafte Lade-Logik (ersetze mit tatsächlichen Daten aus Firestore)
+            FirestoreManager.shared.getClients { result in
+                if case .success(let clients) = result {
+                    DispatchQueue.main.async {
+                        clientCount = clients.count
+                    }
+                }
+            }
+            FirestoreManager.shared.getContracts { result in
+                if case .success(let contracts) = result {
+                    DispatchQueue.main.async {
+                        contractCount = contracts.count
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    // Simuliere einen eingeloggten Zustand
+    let authManager = AuthManager()
+    authManager.isLoggedIn = true
+    authManager.userEmail = "test@example.com"
+    authManager.userRole = .mitarbeiter // Oder eine andere Rolle
+
+    return ContentView()
+        .environmentObject(authManager)
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct ContractListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var contracts: [Contract] = []
+    @State private var showingAddContract = false
+    @State private var isEditing = false
+    @State private var errorMessage: String = ""
+    @State private var newContract = Contract(
+        id: nil,
+        clientID: nil,
+        vereinID: nil,
+        startDatum: Date(),
+        endDatum: nil,
+        gehalt: nil,
+        vertragsdetails: nil
+    )
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(contracts) { contract in
+                    VStack(alignment: .leading) {
+                        if let clientID = contract.clientID {
+                            Text("Klient: \(clientID)")
+                                .font(.headline)
+                        }
+                        if let vereinID = contract.vereinID {
+                            Text("Verein: \(vereinID)")
+                        }
+                        Text("Start: \(dateFormatter.string(from: contract.startDatum))")
+                        if let endDatum = contract.endDatum {
+                            Text("Ende: \(dateFormatter.string(from: endDatum))")
+                        }
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteContract(contract)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                        Button {
+                            isEditing = true
+                            newContract = contract
+                            showingAddContract = true
+                        } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(isEditing ? "Vertrag bearbeiten" : "Vertragsübersicht")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Neuen Vertrag anlegen") {
+                        if authManager.isLoggedIn {
+                            showingAddContract = true
+                            isEditing = false
+                            newContract = Contract(
+                                id: nil,
+                                clientID: nil,
+                                vereinID: nil,
+                                startDatum: Date(),
+                                endDatum: nil,
+                                gehalt: nil,
+                                vertragsdetails: nil
+                            )
+                        } else {
+                            errorMessage = "Du musst angemeldet sein, um einen neuen Vertrag anzulegen."
+                        }
+                    }
+                    .disabled(!authManager.isLoggedIn)
+                }
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .sheet(isPresented: $showingAddContract) {
+                AddContractView(contract: $newContract, isEditing: isEditing, onSave: { contract in
+                    if authManager.isLoggedIn {
+                        if isEditing {
+                            updateContract(contract)
+                        } else {
+                            createContract(contract)
+                        }
+                    } else {
+                        errorMessage = "Du musst angemeldet sein, um den Vertrag zu speichern."
+                    }
+                    showingAddContract = false
+                    isEditing = false
+                    newContract = Contract(
+                        id: nil,
+                        clientID: nil,
+                        vereinID: nil,
+                        startDatum: Date(),
+                        endDatum: nil,
+                        gehalt: nil,
+                        vertragsdetails: nil
+                    )
+                }, onCancel: {
+                    showingAddContract = false
+                    isEditing = false
+                    newContract = Contract(
+                        id: nil,
+                        clientID: nil,
+                        vereinID: nil,
+                        startDatum: Date(),
+                        endDatum: nil,
+                        gehalt: nil,
+                        vertragsdetails: nil
+                    )
+                })
+            }
+            .onAppear {
+                loadContracts()
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private func loadContracts() {
+        FirestoreManager.shared.getContracts { result in
+            switch result {
+            case .success(let loadedContracts):
+                contracts = loadedContracts
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Verträge: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func createContract(_ contract: Contract) {
+        FirestoreManager.shared.createContract(contract: contract) { result in
+            switch result {
+            case .success:
+                loadContracts()
+            case .failure(let error):
+                errorMessage = "Fehler beim Hinzufügen des Vertrags: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func updateContract(_ contract: Contract) {
+        FirestoreManager.shared.updateContract(contract: contract) { result in
+            switch result {
+            case .success:
+                loadContracts()
+            case .failure(let error):
+                errorMessage = "Fehler beim Aktualisieren des Vertrags: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func deleteContract(_ contract: Contract) {
+        guard let id = contract.id else { return }
+        FirestoreManager.shared.deleteContract(contractID: id) { result in
+            switch result {
+            case .success:
+                loadContracts()
+            case .failure(let error):
+                errorMessage = "Fehler beim Löschen des Vertrags: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+struct AddContractView: View {
+    @Binding var contract: Contract
+    var isEditing: Bool
+    var onSave: (Contract) -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Vertragsdaten")) {
+                    TextField("Klient-ID", text: Binding(
+                        get: { contract.clientID ?? "" },
+                        set: { contract.clientID = $0.isEmpty ? nil : $0 }
+                    ))
+                    TextField("Verein-ID", text: Binding(
+                        get: { contract.vereinID ?? "" },
+                        set: { contract.vereinID = $0.isEmpty ? nil : $0 }
+                    ))
+                    DatePicker("Startdatum", selection: Binding(
+                        get: { contract.startDatum },
+                        set: { contract.startDatum = $0 }
+                    ), displayedComponents: .date)
+                    DatePicker("Enddatum", selection: Binding(
+                        get: { contract.endDatum ?? Date() },
+                        set: { contract.endDatum = $0 }
+                    ), displayedComponents: .date)
+                    TextField("Gehalt", value: $contract.gehalt, format: .number)
+                    TextField("Vertragsdetails", text: Binding(
+                        get: { contract.vertragsdetails ?? "" },
+                        set: { contract.vertragsdetails = $0.isEmpty ? nil : $0 }
+                    ))
+                }
+            }
+            .navigationTitle(isEditing ? "Vertrag bearbeiten" : "Vertrag anlegen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        onSave(contract)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    ContractListView()
+        .environmentObject(AuthManager())
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct ContractView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var contract: Contract?
+    @State private var errorMessage: String = ""
+    @State private var isLoading = true
+
+    var clientID: String
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                if isLoading {
+                    ProgressView("Lade Vertrag...")
+                } else if let contract = contract {
+                    Form {
+                        Section(header: Text("Vertragsdetails")) {
+                            if let clientID = contract.clientID {
+                                Text("Klient-ID: \(clientID)")
+                            }
+                            if let vereinID = contract.vereinID {
+                                Text("Verein-ID: \(vereinID)")
+                            }
+                            Text("Startdatum: \(dateFormatter.string(from: contract.startDatum))")
+                            if let endDatum = contract.endDatum {
+                                Text("Enddatum: \(dateFormatter.string(from: endDatum))")
+                            }
+                            if let gehalt = contract.gehalt {
+                                Text("Gehalt: \(String(format: "%.2f", gehalt)) €")
+                            }
+                            if let vertragsdetails = contract.vertragsdetails {
+                                Text("Details: \(vertragsdetails)")
+                            }
+                        }
+                    }
+                } else {
+                    Text("Kein Vertrag für diesen Klienten gefunden.")
+                }
+            }
+            .navigationTitle("Vertrag")
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .onAppear {
+                loadContract()
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private func loadContract() {
+        isLoading = true
+        FirestoreManager.shared.getContract(forClientID: clientID) { result in
+            DispatchQueue.main.async {
+                isLoading = false
+                switch result {
+                case .success(let loadedContract):
+                    contract = loadedContract
+                case .failure(let error):
+                    errorMessage = "Fehler beim Laden des Vertrags: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    ContractView(clientID: "1")
+        .environmentObject(AuthManager())
+}
+
+import SwiftUI
+
+struct EditClubView: View {
+    @Binding var club: Club
+    var onSave: (Club) -> Void
+    var onCancel: () -> Void
+
+    @State private var name: String
+    @State private var league: String
+    @State private var abteilung: String
+    @State private var memberCount: String
+    @State private var founded: String
+    @State private var logoURL: String
+    @State private var kontaktTelefon: String
+    @State private var kontaktEmail: String
+    @State private var adresse: String
+    @State private var clients: String
+    @State private var land: String
+
+    init(club: Binding<Club>, onSave: @escaping (Club) -> Void, onCancel: @escaping () -> Void) {
+        self._club = club
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._name = State(initialValue: club.wrappedValue.name)
+        self._league = State(initialValue: club.wrappedValue.league ?? "")
+        self._abteilung = State(initialValue: club.wrappedValue.abteilung ?? "")
+        self._memberCount = State(initialValue: club.wrappedValue.memberCount.map(String.init) ?? "")
+        self._founded = State(initialValue: club.wrappedValue.founded ?? "")
+        self._logoURL = State(initialValue: club.wrappedValue.logoURL ?? "")
+        self._kontaktTelefon = State(initialValue: club.wrappedValue.kontaktTelefon ?? "")
+        self._kontaktEmail = State(initialValue: club.wrappedValue.kontaktEmail ?? "")
+        self._adresse = State(initialValue: club.wrappedValue.adresse ?? "")
+        self._clients = State(initialValue: club.wrappedValue.clients?.joined(separator: ", ") ?? "")
+        self._land = State(initialValue: club.wrappedValue.land ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Vereinsdaten")) {
+                    TextField("Name", text: $name)
+                    TextField("Liga", text: $league)
+                    Picker("Abteilung", selection: $abteilung) {
+                        Text("Bitte auswählen").tag("")
+                        Text("Männer").tag("Männer")
+                        Text("Frauen").tag("Frauen")
+                    }
+                    .pickerStyle(.menu)
+                    TextField("Mitgliederzahl", text: $memberCount)
+                        .keyboardType(.numberPad)
+                    TextField("Gegründet", text: $founded)
+                    TextField("Logo-URL", text: $logoURL)
+                    TextField("Telefon", text: $kontaktTelefon)
+                    TextField("E-Mail", text: $kontaktEmail)
+                    TextField("Adresse", text: $adresse)
+                    TextField("Klienten (durch Komma getrennt)", text: $clients)
+                    TextField("Land", text: $land)
+                }
+            }
+            .navigationTitle("Verein bearbeiten")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        let updatedClub = Club(
+                            id: club.id,
+                            name: name,
+                            league: league.isEmpty ? nil : league,
+                            abteilung: abteilung.isEmpty ? nil : abteilung,
+                            kontaktTelefon: kontaktTelefon.isEmpty ? nil : kontaktTelefon,
+                            kontaktEmail: kontaktEmail.isEmpty ? nil : kontaktEmail,
+                            adresse: adresse.isEmpty ? nil : adresse,
+                            clients: clients.isEmpty ? nil : clients.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) },
+                            land: land.isEmpty ? nil : land,
+                            memberCount: Int(memberCount) ?? club.memberCount,
+                            founded: founded.isEmpty ? nil : founded,
+                            logoURL: logoURL.isEmpty ? nil : logoURL
+                        )
+                        onSave(updatedClub)
+                    }
+                    .disabled(abteilung.isEmpty || name.isEmpty) // Deaktiviere Button, wenn keine Abteilung oder kein Name ausgewählt
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    let club = Club(name: "Bayern München", league: "1. Bundesliga", memberCount: 400000, founded: "1900")
+    EditClubView(club: .constant(club), onSave: { _ in }, onCancel: {})
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct EmployeeView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var contractCount = 0
+    @State private var matchCount = 0
+    @State private var transferCount = 0
+    @State private var clientCount = 0
+    @State private var searchText = ""
+    @State private var clients: [Client] = []
+    @State private var filteredClients: [Client] = []
+    @State private var showingLeadSheet = false
+    @State private var showingAddClientSheet = false
+    @State private var showingAddClubSheet = false
+    @State private var showingAddTransferSheet = false
+    @State private var showingAddFunktionärSheet = false // Geändert von Agent zu Funktionär
+    @State private var showingSearchSheet = false
+    @State private var selectedTab = 0
+    @State private var newClient = Client(
+        id: nil,
+        typ: "Spieler",
+        name: "",
+        vorname: "",
+        geschlecht: "männlich",
+        vereinID: nil,
+        nationalitaet: [],
+        geburtsdatum: nil,
+        liga: nil,
+        profilbildURL: nil
+    )
+    @State private var newClub = Club(name: "")
+    @State private var newTransfer = Transfer()
+    @State private var newFunktionär = Funktionär( // Geändert von Agent zu Funktionär
+        id: nil,
+        name: "",
+        vorname: "",
+        kontaktTelefon: nil,
+        kontaktEmail: nil,
+        adresse: nil,
+        clients: nil
+    )
+
+    // Definition der Tabs mit Titel, Symbol und zugehöriger Ansicht
+    private let tabs: [(title: String, icon: String, view: AnyView)] = [
+        ("Home", "house", AnyView(HomeView())),
+        ("Klienten", "person.2", AnyView(ClientListView())),
+        ("Verträge", "doc.text", AnyView(ContractListView())),
+        ("Vereine", "building.2", AnyView(ClubListView())),
+        ("Transfers", "arrow.left.arrow.right", AnyView(TransferListView())),
+        ("Spiele", "sportscourt", AnyView(MatchListView())),
+        ("Sponsoren", "dollarsign.circle", AnyView(SponsorListView())),
+        ("Funktionäre", "person.badge.key", AnyView(FunktionärListView())), // Geändert von Agenten
+        ("Chat", "bubble.left", AnyView(ChatView()))
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Scrollbare Tab-Leiste
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 20) {
+                    ForEach(tabs.indices, id: \.self) { index in
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) { // Sanfte Animation beim Tab-Wechsel
+                                selectedTab = index
+                            }
+                        }) {
+                            Label(tabs[index].title, systemImage: tabs[index].icon)
+                                .foregroundColor(selectedTab == index ? .blue : .gray)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(selectedTab == index ? Color.blue.opacity(0.1) : Color.clear)
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .background(Color(.systemGray6))
+
+            // Hauptansicht basierend auf dem ausgewählten Tab mit Animation
+            ZStack {
+                ForEach(tabs.indices, id: \.self) { index in
+                    tabs[index].view
+                        .environmentObject(authManager)
+                        .opacity(selectedTab == index ? 1 : 0) // Nur die ausgewählte Ansicht anzeigen
+                        .animation(.easeInOut(duration: 0.3), value: selectedTab) // Sanfte Übergangsanimation
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Spacer()
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button(action: { authManager.signOut() }) {
+                        Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddClientSheet) {
+            AddClientView(
+                client: $newClient,
+                isEditing: false,
+                onSave: { updatedClient in
+                    FirestoreManager.shared.createClient(client: updatedClient) { result in
+                        switch result {
+                        case .success:
+                            loadClients()
+                            newClient = Client(
+                                id: nil,
+                                typ: "Spieler",
+                                name: "",
+                                vorname: "",
+                                geschlecht: "männlich",
+                                vereinID: nil,
+                                nationalitaet: [],
+                                geburtsdatum: nil,
+                                liga: nil,
+                                profilbildURL: nil
+                            )
+                        case .failure(let error):
+                            print("Fehler beim Speichern: \(error.localizedDescription)")
+                        }
+                    }
+                    showingAddClientSheet = false
+                },
+                onCancel: {
+                    newClient = Client(
+                        id: nil,
+                        typ: "Spieler",
+                        name: "",
+                        vorname: "",
+                        geschlecht: "männlich",
+                        vereinID: nil,
+                        nationalitaet: [],
+                        geburtsdatum: nil,
+                        liga: nil,
+                        profilbildURL: nil
+                    )
+                    showingAddClientSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showingAddClubSheet) {
+            AddClubView(
+                club: $newClub,
+                onSave: { updatedClub in
+                    FirestoreManager.shared.createClub(club: updatedClub) { result in
+                        switch result {
+                        case .success:
+                            loadClients() // Aktualisiere die Client-Liste, falls nötig
+                            newClub = Club(name: "")
+                        case .failure(let error):
+                            print("Fehler beim Speichern: \(error.localizedDescription)")
+                        }
+                    }
+                    showingAddClubSheet = false
+                },
+                onCancel: {
+                    newClub = Club(name: "")
+                    showingAddClubSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showingAddTransferSheet) {
+            // Platzhalter für Transfer-Ansicht
+            Text("Transfer anlegen (Platzhalter)")
+                .onDisappear {
+                    showingAddTransferSheet = false
+                }
+        }
+        .sheet(isPresented: $showingAddFunktionärSheet) { // Geändert von Agent zu Funktionär
+            AddFunktionärView(
+                funktionär: $newFunktionär,
+                onSave: { updatedFunktionär in
+                    FirestoreManager.shared.createAgent(agent: updatedFunktionär) { result in
+                        switch result {
+                        case .success:
+                            newFunktionär = Funktionär(
+                                id: nil,
+                                name: "",
+                                vorname: "",
+                                kontaktTelefon: nil,
+                                kontaktEmail: nil,
+                                adresse: nil,
+                                clients: nil
+                            )
+                        case .failure(let error):
+                            print("Fehler beim Speichern: \(error.localizedDescription)")
+                        }
+                    }
+                    showingAddFunktionärSheet = false
+                },
+                onCancel: {
+                    newFunktionär = Funktionär(
+                        id: nil,
+                        name: "",
+                        vorname: "",
+                        kontaktTelefon: nil,
+                        kontaktEmail: nil,
+                        adresse: nil,
+                        clients: nil
+                    )
+                    showingAddFunktionärSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showingSearchSheet) {
+            // Platzhalter für Appübergreifende Suche
+            Text("Appübergreifende Suche (Platzhalter)")
+                .onDisappear {
+                    showingSearchSheet = false
+                }
+        }
+        .sheet(isPresented: $showingLeadSheet) {
+            ClientContactView(authManager: authManager)
+        }
+        .overlay(
+            // Untere Navigation im Apple-Stil mit Bezeichnung unter Symbol
+            VStack {
+                Spacer()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 20) {
+                        // Home-Button
+                        Button(action: { withAnimation(.easeInOut(duration: 0.3)) { selectedTab = 0 } }) {
+                            VStack {
+                                Image(systemName: "house")
+                                    .font(.title2)
+                                Text("Home")
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(selectedTab == 0 ? .blue : .gray)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Create-Button mit Menü
+                        Menu {
+                            Button(action: { showingLeadSheet = true }) {
+                                Label("Lead (neuer Lead)", systemImage: "envelope")
+                            }
+                            Button(action: { showingAddClientSheet = true }) {
+                                Label("Klient (neuen Klienten)", systemImage: "person.crop.circle.badge.plus")
+                            }
+                            Button(action: { showingAddClubSheet = true }) {
+                                Label("Verein (neuer Verein)", systemImage: "building.2.fill")
+                            }
+                            Button(action: { showingAddTransferSheet = true }) {
+                                Label("Transfer (neuer Transfer)", systemImage: "arrow.left.arrow.right.circle")
+                            }
+                            Button(action: { showingAddFunktionärSheet = true }) { // Geändert von Agent zu Funktionär
+                                Label("Funktionär (neuer Funktionär)", systemImage: "person.badge.key")
+                            }
+                        } label: {
+                            VStack {
+                                Image(systemName: "plus.circle")
+                                    .font(.title2)
+                                Text("Create")
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(.blue)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Suche-Button
+                        Button(action: { showingSearchSheet = true }) {
+                            VStack {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.title2)
+                                Text("Suche")
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(.gray)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        // Chat-Button
+                        Button(action: { withAnimation(.easeInOut(duration: 0.3)) { selectedTab = tabs.count - 1 } }) {
+                            VStack {
+                                Image(systemName: "bubble.left")
+                                    .font(.title2)
+                                Text("Chat")
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(selectedTab == tabs.count - 1 ? .blue : .gray)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 70) // Erhöhte Höhe für Text unter Symbol
+                .background(Color.black)
+                .foregroundColor(.white)
+            }
+            , alignment: .bottom
+        )
+        .onAppear {
+            loadCounts()
+            loadClients()
+        }
+    }
+
+    private func loadCounts() {
+        FirestoreManager.shared.getContracts { result in
+            switch result {
+            case .success(let contracts): contractCount = contracts.count
+            case .failure: contractCount = 0
+            }
+        }
+        FirestoreManager.shared.getMatches { result in
+            switch result {
+            case .success(let matches): matchCount = matches.count
+            case .failure: matchCount = 0
+            }
+        }
+        FirestoreManager.shared.getTransfers { result in
+            switch result {
+            case .success(let transfers): transferCount = transfers.count
+            case .failure: transferCount = 0
+            }
+        }
+        FirestoreManager.shared.getClients { result in
+            switch result {
+            case .success(let loadedClients):
+                clients = loadedClients
+                clientCount = loadedClients.count
+                applySearch()
+            case .failure:
+                clients = []
+                clientCount = 0
+                applySearch()
+            }
+        }
+    }
+
+    private func loadClients() {
+        FirestoreManager.shared.getClients { result in
+            switch result {
+            case .success(let loadedClients):
+                clients = loadedClients
+                clientCount = loadedClients.count
+                applySearch()
+            case .failure:
+                clients = []
+                clientCount = 0
+                applySearch()
+            }
+        }
+    }
+
+    private func applySearch() {
+        if searchText.isEmpty {
+            filteredClients = clients
+        } else {
+            filteredClients = clients.filter {
+                $0.vorname.lowercased().contains(searchText.lowercased()) ||
+                $0.name.lowercased().contains(searchText.lowercased())
+            }
+        }
+    }
+}
+
+// Home-Ansicht für den ersten Tab (nur Willkommensnachricht)
+struct HomeView: View {
+    @EnvironmentObject var authManager: AuthManager
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Spacer()
+                Text("Willkommen, \(authManager.userEmail ?? "Gast")!")
+                    .font(.title)
+                    .padding()
+                Spacer()
+            }
+            .navigationTitle("Home")
+        }
+    }
+}
+
+// Chat-Ansicht als eigener Tab (Platzhalter)
+struct ChatView: View {
+    @EnvironmentObject var authManager: AuthManager
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Spacer()
+                Text("Chat (Platzhalter)")
+                    .font(.title)
+                    .padding()
+                Spacer()
+            }
+            .navigationTitle("Chat")
+        }
+    }
+}
+
+struct StatCard: View {
+    let title: String
+    let count: Int
+
+    var body: some View {
+        VStack {
+            Text(title)
+                .font(.headline)
+            Text("\(count)")
+                .font(.title)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+    }
+}
+
+#Preview {
+    EmployeeView()
+        .environmentObject(AuthManager())
+}
+
+import FirebaseFirestore
+import FirebaseStorage
+
+class FirestoreManager {
+    static let shared = FirestoreManager()
+    private let db = Firestore.firestore()
+    private let storage = Storage.storage()
+
+    // Klienten-Methoden
+    func getClients(completion: @escaping (Result<[Client], Error>) -> Void) {
+        db.collection("clients").addSnapshotListener { querySnapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let documents = querySnapshot?.documents else {
+                completion(.success([]))
+                return
+            }
+            let clients = documents.compactMap { try? $0.data(as: Client.self) }
+            completion(.success(clients))
+        }
+    }
+
+    func createClient(client: Client, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("clients").addDocument(from: client) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateClient(client: Client, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = client.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Client-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("clients").document(id).setData(from: client) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteClient(clientID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("clients").document(clientID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    // Funktionär-Methoden
+    func getAgents(completion: @escaping (Result<[Funktionär], Error>) -> Void) {
+        db.collection("funktionäre").addSnapshotListener { querySnapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let documents = querySnapshot?.documents else {
+                completion(.success([]))
+                return
+            }
+            let funktionäre = documents.compactMap { try? $0.data(as: Funktionär.self) }
+            completion(.success(funktionäre))
+        }
+    }
+
+    func createAgent(agent: Funktionär, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("funktionäre").addDocument(from: agent) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateAgent(agent: Funktionär, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = agent.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Funktionär-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("funktionäre").document(id).setData(from: agent) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteAgent(agentID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("funktionäre").document(agentID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    // Vereins-Methoden
+    func getClubs(completion: @escaping (Result<[Club], Error>) -> Void) {
+        db.collection("clubs").addSnapshotListener { snapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            let clubs = snapshot?.documents.compactMap { doc -> Club? in
+                try? doc.data(as: Club.self)
+            } ?? []
+            completion(.success(clubs))
+        }
+    }
+
+    func createClub(club: Club, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("clubs").addDocument(from: club) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateClub(_ club: Club, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = club.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Club-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("clubs").document(id).setData(from: club) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteClub(clubID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("clubs").document(clubID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    // Vertrags-Methoden
+    func getContracts(completion: @escaping (Result<[Contract], Error>) -> Void) {
+        db.collection("contracts").addSnapshotListener { querySnapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let documents = querySnapshot?.documents else {
+                completion(.success([]))
+                return
+            }
+            let contracts = documents.compactMap { try? $0.data(as: Contract.self) }
+            completion(.success(contracts))
+        }
+    }
+
+    func createContract(contract: Contract, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("contracts").addDocument(from: contract) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateContract(contract: Contract, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = contract.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Contract-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("contracts").document(id).setData(from: contract) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteContract(contractID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("contracts").document(contractID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    func getContract(forClientID clientID: String, completion: @escaping (Result<Contract?, Error>) -> Void) {
+        db.collection("contracts")
+            .whereField("clientID", isEqualTo: clientID)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion(.failure(error))
+                } else if let snapshot = snapshot, let document = snapshot.documents.first {
+                    let contract = try? document.data(as: Contract.self)
+                    completion(.success(contract))
+                } else {
+                    completion(.success(nil))
+                }
+            }
+    }
+
+    // Transfer-Methoden
+    func getTransfers(completion: @escaping (Result<[Transfer], Error>) -> Void) {
+        db.collection("transfers").addSnapshotListener { querySnapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let documents = querySnapshot?.documents else {
+                completion(.success([]))
+                return
+            }
+            let transfers = documents.compactMap { try? $0.data(as: Transfer.self) }
+            completion(.success(transfers))
+        }
+    }
+
+    func createTransfer(transfer: Transfer, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("transfers").addDocument(from: transfer) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateTransfer(transfer: Transfer, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = transfer.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Transfer-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("transfers").document(id).setData(from: transfer) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteTransfer(transferID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("transfers").document(transferID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    // Match-Methoden
+    func getMatches(completion: @escaping (Result<[Match], Error>) -> Void) {
+        db.collection("matches").addSnapshotListener { querySnapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let documents = querySnapshot?.documents else {
+                completion(.success([]))
+                return
+            }
+            let matches = documents.compactMap { try? $0.data(as: Match.self) }
+            completion(.success(matches))
+        }
+    }
+
+    func createMatch(match: Match, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("matches").addDocument(from: match) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateMatch(match: Match, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = match.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Match-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("matches").document(id).setData(from: match) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteMatch(matchID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("matches").document(matchID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    // Sponsor-Methoden
+    func getSponsors(completion: @escaping (Result<[Sponsor], Error>) -> Void) {
+        db.collection("sponsors").addSnapshotListener { querySnapshot, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let documents = querySnapshot?.documents else {
+                completion(.success([]))
+                return
+            }
+            let sponsors = documents.compactMap { try? $0.data(as: Sponsor.self) }
+            completion(.success(sponsors))
+        }
+    }
+
+    func createSponsor(sponsor: Sponsor, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("sponsors").addDocument(from: sponsor) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func updateSponsor(sponsor: Sponsor, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let id = sponsor.id else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Kein Sponsor-ID verfügbar"])))
+            return
+        }
+        do {
+            try db.collection("sponsors").document(id).setData(from: sponsor) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func deleteSponsor(sponsorID: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection("sponsors").document(sponsorID).delete { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                completion(.success(()))
+            }
+        }
+    }
+
+    // Allgemeine Profilbild-Methode für Klienten und Funktionäre
+    func uploadProfileImage(documentID: String, image: UIImage, collection: String = "profile_images", completion: @escaping (Result<String, Error>) -> Void) {
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Bild konnte nicht komprimiert werden"])))
+            return
+        }
+
+        let storageRef = storage.reference().child("\(collection)/\(documentID).jpg")
+        storageRef.putData(imageData, metadata: nil) { metadata, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            storageRef.downloadURL { url, error in
+                if let error = error {
+                    completion(.failure(error))
+                } else if let url = url {
+                    completion(.success(url.absoluteString))
+                } else {
+                    completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL konnte nicht abgerufen werden"])))
+                }
+            }
+        }
+    }
+
+    // Aktivitäten-Methoden
+    func createActivity(activity: Activity, completion: @escaping (Result<Void, Error>) -> Void) {
+        do {
+            try db.collection("activities").addDocument(from: activity) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        } catch {
+            completion(.failure(error))
+        }
+    }
+
+    func getActivities(forClientID clientID: String, completion: @escaping (Result<[Activity], Error>) -> Void) {
+        db.collection("activities")
+            .whereField("clientID", isEqualTo: clientID)
+            .order(by: "timestamp", descending: true)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    completion(.failure(error))
+                } else if let snapshot = snapshot {
+                    let activities = snapshot.documents.compactMap { try? $0.data(as: Activity.self) }
+                    completion(.success(activities))
+                }
+            }
+    }
+}
+
+
+import SwiftUI
+import FirebaseFirestore
+
+struct FunktionärListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var funktionäre: [Funktionär] = []
+    @State private var errorMessage: String = ""
+    @State private var showingEditSheet = false
+    @State private var selectedFunktionär: Funktionär? = nil
+    @State private var imageCache: [String: UIImage] = [:] // Cache für Profilbilder und Logos
+    @State private var clubs: [Club] = [] // Für Vereinslogos
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(funktionäre, id: \.self) { funktionär in
+                    NavigationLink(destination: FunktionärView(funktionär: funktionär)) {
+                        HStack(spacing: 10) {
+                            // Vereinslogo
+                            if let vereinID = funktionär.vereinID, let club = clubs.first(where: { $0.name == vereinID }), let logoURL = club.logoURL, let url = URL(string: logoURL), let cachedImage = imageCache[logoURL] {
+                                Image(uiImage: cachedImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                    .clipShape(Circle())
+                            } else {
+                                Image(systemName: "building.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                    .foregroundColor(.gray)
+                                    .clipShape(Circle())
+                                    .onAppear {
+                                        loadClubLogo(for: funktionär.vereinID)
+                                    }
+                            }
+
+                            // Profilbild laden
+                            if let profilbildURL = funktionär.profilbildURL, let url = URL(string: profilbildURL), let cachedImage = imageCache[profilbildURL] {
+                                Image(uiImage: cachedImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                            } else {
+                                Image(systemName: "person.circle.fill")
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 40, height: 40)
+                                    .foregroundColor(.gray)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                                    .onAppear {
+                                        loadImage(for: funktionär)
+                                    }
+                            }
+
+                            // Vertikale Anordnung von Vorname, Name und Geburtsdatum
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(funktionär.vorname) \(funktionär.name)")
+                                    .font(.headline)
+                                    .scaleEffect(0.7) // 30% kleiner
+                                if let geburtsdatum = funktionär.geburtsdatum {
+                                    Text(dateFormatter.string(from: geburtsdatum))
+                                        .font(.caption)
+                                }
+                                if let vereinID = funktionär.vereinID {
+                                    Text("Verein: \(vereinID)")
+                                        .font(.caption)
+                                } else {
+                                    Text("Ohne Verein")
+                                        .font(.caption)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            // Platzhalter für Geschlechtssymbol (optional, falls später hinzugefügt)
+                            Text("")
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        .padding(.vertical, 5)
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteFunktionär(funktionär)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                        Button {
+                            selectedFunktionär = funktionär
+                            showingEditSheet = true
+                        } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
+                }
+            }
+            .navigationTitle("Funktionäre verwalten")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        selectedFunktionär = nil // Setze auf nil, um einen neuen Funktionär zu erstellen
+                        showingEditSheet = true
+                    }) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingEditSheet) {
+                editSheetContent()
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .onAppear {
+                loadFunktionäre()
+                loadClubs()
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private func loadFunktionäre() {
+        FirestoreManager.shared.getAgents { result in
+            switch result {
+            case .success(let loadedFunktionäre):
+                funktionäre = loadedFunktionäre
+                for funktionär in loadedFunktionäre {
+                    if let profilbildURL = funktionär.profilbildURL {
+                        loadImage(for: funktionär)
+                    }
+                }
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Funktionäre: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func loadClubs() {
+        FirestoreManager.shared.getClubs { result in
+            switch result {
+            case .success(let loadedClubs):
+                clubs = loadedClubs
+                for club in loadedClubs {
+                    if let logoURL = club.logoURL {
+                        loadClubLogo(for: club.name)
+                    }
+                }
+            case .failure(let error):
+                print("Fehler beim Laden der Vereine: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func deleteFunktionär(_ funktionär: Funktionär) {
+        guard let id = funktionär.id else { return }
+        FirestoreManager.shared.deleteAgent(agentID: id) { result in
+            switch result {
+            case .success:
+                loadFunktionäre()
+            case .failure(let error):
+                errorMessage = "Fehler beim Löschen des Funktionärs: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func loadImage(from url: URL, forKey key: String) {
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let data = data, let image = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.imageCache[key] = image
+                }
+            }
+        }.resume()
+    }
+
+    private func loadImage(for funktionär: Funktionär) {
+        if let profilbildURL = funktionär.profilbildURL, let url = URL(string: profilbildURL) {
+            loadImage(from: url, forKey: profilbildURL)
+        }
+    }
+
+    private func loadClubLogo(for vereinID: String?) {
+        guard let vereinID = vereinID, let club = clubs.first(where: { $0.name == vereinID }), let logoURL = club.logoURL, let url = URL(string: logoURL) else { return }
+        loadImage(from: url, forKey: logoURL)
+    }
+
+    @ViewBuilder
+    private func editSheetContent() -> some View {
+        let defaultFunktionär = Funktionär(
+            id: nil,
+            name: "",
+            vorname: "",
+            kontaktTelefon: nil,
+            kontaktEmail: nil,
+            adresse: nil,
+            clients: nil,
+            profilbildURL: nil,
+            geburtsdatum: nil
+        )
+
+        if selectedFunktionär != nil {
+            // Bearbeiten eines bestehenden Funktionärs
+            AddFunktionärView(funktionär: Binding(
+                get: { selectedFunktionär! },
+                set: { newValue in
+                    selectedFunktionär = newValue
+                }
+            ), onSave: { newFunktionär in
+                print("Saving funktionär with vereinID: \(newFunktionär.vereinID ?? "nil")") // Debugging
+                if let id = selectedFunktionär!.id {
+                    // Bearbeitung: Update existierenden Funktionär
+                    FirestoreManager.shared.updateAgent(agent: newFunktionär) { result in
+                        switch result {
+                        case .success:
+                            print("Funktionär erfolgreich aktualisiert mit vereinID: \(newFunktionär.vereinID ?? "nil")")
+                            loadFunktionäre()
+                        case .failure(let error):
+                            errorMessage = "Fehler beim Aktualisieren des Funktionärs: \(error.localizedDescription)"
+                        }
+                    }
+                } else {
+                    // Neuer Funktionär: Erstelle neuen Eintrag
+                    FirestoreManager.shared.createAgent(agent: newFunktionär) { result in
+                        switch result {
+                        case .success:
+                            print("Funktionär erfolgreich erstellt mit vereinID: \(newFunktionär.vereinID ?? "nil")")
+                            loadFunktionäre()
+                        case .failure(let error):
+                            errorMessage = "Fehler beim Erstellen des Funktionärs: \(error.localizedDescription)"
+                        }
+                    }
+                }
+                showingEditSheet = false
+                selectedFunktionär = nil // Zurücksetzen nach dem Speichern
+            }, onCancel: {
+                showingEditSheet = false
+                selectedFunktionär = nil // Zurücksetzen bei Abbruch
+            })
+        } else {
+            // Neuer Funktionär
+            AddFunktionärView(funktionär: .constant(defaultFunktionär), onSave: { newFunktionär in
+                print("Creating new funktionär with vereinID: \(newFunktionär.vereinID ?? "nil")") // Debugging
+                FirestoreManager.shared.createAgent(agent: newFunktionär) { result in
+                    switch result {
+                    case .success:
+                        print("Funktionär erfolgreich erstellt mit vereinID: \(newFunktionär.vereinID ?? "nil")")
+                        loadFunktionäre()
+                    case .failure(let error):
+                        errorMessage = "Fehler beim Erstellen des Funktionärs: \(error.localizedDescription)"
+                    }
+                }
+                showingEditSheet = false
+                selectedFunktionär = nil // Zurücksetzen nach dem Speichern
+            }, onCancel: {
+                showingEditSheet = false
+                selectedFunktionär = nil // Zurücksetzen bei Abbruch
+            })
+        }
+    }
+}
+
+struct FunktionärView: View {
+    let funktionär: Funktionär
+    @State private var image: UIImage? = nil
+    @State private var showingEditSheet = false
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                // Profilbild
+                if let image = image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 100, height: 100)
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 100, height: 100)
+                        .foregroundColor(.gray)
+                        .clipShape(Circle())
+                }
+
+                // Name und Alter
+                Text("\(funktionär.vorname) \(funktionär.name)\(calculateAge().map { ", \($0) Jahre" } ?? "")")
+                    .font(.title)
+                    .padding()
+
+                // Verein
+                if let vereinID = funktionär.vereinID {
+                    Text("Verein: \(vereinID)")
+                        .font(.headline)
+                } else {
+                    Text("Ohne Verein")
+                        .font(.headline)
+                }
+
+                // Kontaktinformationen
+                if let kontaktEmail = funktionär.kontaktEmail {
+                    Text("E-Mail: \(kontaktEmail)")
+                        .font(.subheadline)
+                }
+                if let kontaktTelefon = funktionär.kontaktTelefon {
+                    Text("Telefon: \(kontaktTelefon)")
+                        .font(.subheadline)
+                }
+                if let adresse = funktionär.adresse {
+                    Text("Adresse: \(adresse)")
+                        .font(.subheadline)
+                }
+
+                // Bearbeiten-Button zentriert
+                HStack {
+                    Spacer()
+                    Button(action: { showingEditSheet = true }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16))
+                            .foregroundColor(.blue)
+                    }
+                    .sheet(isPresented: $showingEditSheet) {
+                        AddFunktionärView(funktionär: .constant(funktionär), onSave: { updatedFunktionär in
+                            FirestoreManager.shared.updateAgent(agent: updatedFunktionär) { result in
+                                switch result {
+                                case .success:
+                                    print("Funktionär erfolgreich aktualisiert")
+                                case .failure(let error):
+                                    print("Fehler beim Aktualisieren des Funktionärs: \(error.localizedDescription)")
+                                }
+                            }
+                            showingEditSheet = false
+                        }, onCancel: {
+                            showingEditSheet = false
+                        })
+                    }
+                    Spacer()
+                }
+                .padding(.bottom)
+
+                Spacer()
+            }
+            .navigationTitle("\(funktionär.vorname) \(funktionär.name)")
+            .onAppear {
+                loadImage()
+            }
+        }
+    }
+
+    private func loadImage() {
+        if let profilbildURL = funktionär.profilbildURL, let url = URL(string: profilbildURL) {
+            URLSession.shared.dataTask(with: url) { data, _, _ in
+                if let data = data, let loadedImage = UIImage(data: data) {
+                    DispatchQueue.main.async {
+                        self.image = loadedImage
+                    }
+                }
+            }.resume()
+        }
+    }
+
+    private func calculateAge() -> Int? {
+        guard let birthDate = funktionär.geburtsdatum else { return nil }
+        let calendar = Calendar.current
+        let now = Date()
+        let ageComponents = calendar.dateComponents([.year], from: birthDate, to: now)
+        return ageComponents.year
+    }
+}
+
+#Preview {
+    FunktionärListView()
+        .environmentObject(AuthManager())
+}
+
+
+import FirebaseFirestore
+
+struct GuestView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var clients: [Client] = []
+    @State private var filteredClients: [Client] = []
+    @State private var searchText = ""
+    @State private var filterPosition: String? = nil
+    @State private var filterStarkerFuss: String? = nil
+    @State private var errorMessage: String = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Willkommen, Verein")
+                            .font(.title)
+                            .fontWeight(.bold)
+                        if let email = authManager.userEmail {
+                            Text("Eingeloggt als: \(email)")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    Spacer()
+                    Button(action: { authManager.signOut() }) { // Korrigierter Aufruf
+                        Text("Ausloggen")
+                            .foregroundColor(.red)
+                    }
+                }
+                .padding()
+
+                TextField("Suche Klienten...", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+                    .onChange(of: searchText) { applyFilters() }
+
+                HStack {
+                    Picker("Position", selection: $filterPosition) {
+                        Text("Alle Positionen").tag(String?.none)
+                        Text("Tor").tag(String?.some("Tor"))
+                        Text("Innenverteidigung").tag(String?.some("Innenverteidigung"))
+                        Text("Aussenverteidiger").tag(String?.some("Aussenverteidiger"))
+                        Text("Mittelfeld").tag(String?.some("Mittelfeld"))
+                        Text("Stürmer").tag(String?.some("Stürmer"))
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .onChange(of: filterPosition) { applyFilters() }
+
+                    Picker("Starker Fuß", selection: $filterStarkerFuss) {
+                        Text("Alle").tag(String?.none)
+                        Text("rechts").tag(String?.some("rechts"))
+                        Text("links").tag(String?.some("links"))
+                        Text("beide").tag(String?.some("beide"))
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .onChange(of: filterStarkerFuss) { applyFilters() }
+                }
+                .padding(.horizontal)
+
+                List {
+                    ForEach(filteredClients) { client in
+                        NavigationLink(destination: ClientView(client: client)) {
+                            Text("\(client.vorname) \(client.name)")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Gast")
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .onAppear {
+                loadClients()
+            }
+        }
+    }
+
+    private func loadClients() {
+        FirestoreManager.shared.getClients { result in
+            switch result {
+            case .success(let loadedClients):
+                clients = loadedClients
+                filteredClients = loadedClients
+                applyFilters()
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Klienten: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func applyFilters() {
+        filteredClients = clients.filter { client in
+            let matchesSearch = searchText.isEmpty ||
+                client.vorname.lowercased().contains(searchText.lowercased()) ||
+                client.name.lowercased().contains(searchText.lowercased())
+            let matchesPosition = filterPosition == nil ||
+                client.positionFeld?.contains { $0.lowercased().contains(filterPosition!.lowercased()) } ?? false
+            let matchesFoot = filterStarkerFuss == nil ||
+                client.starkerFuss?.lowercased() == filterStarkerFuss?.lowercased()
+            return matchesSearch && matchesPosition && matchesFoot
+        }
+    }
+}
+
+#Preview {
+    GuestView()
+        .environmentObject(AuthManager())
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct MatchListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var matches: [Match] = []
+    @State private var showingAddMatch = false
+    @State private var isEditing = false
+    @State private var errorMessage: String = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(matches) { match in
+                    VStack(alignment: .leading) {
+                        if let heimVereinID = match.heimVereinID {
+                            Text("Heim: \(heimVereinID)")
+                                .font(.headline)
+                        }
+                        if let gastVereinID = match.gastVereinID {
+                            Text("Auswärts: \(gastVereinID)")
+                        }
+                        Text("Datum: \(dateFormatter.string(from: match.datum))")
+                        if let ergebnis = match.ergebnis {
+                            Text("Ergebnis: \(ergebnis)")
+                        }
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteMatch(match)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                        Button {
+                            isEditing = true
+                            showingAddMatch = true
+                        } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(isEditing ? "Spiel bearbeiten" : "Spielübersicht")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Neues Spiel anlegen") {
+                        if authManager.isLoggedIn {
+                            showingAddMatch = true
+                            isEditing = false
+                        } else {
+                            errorMessage = "Du musst angemeldet sein, um ein neues Spiel anzulegen."
+                        }
+                    }
+                    .disabled(!authManager.isLoggedIn)
+                }
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .sheet(isPresented: $showingAddMatch) {
+                AddMatchView(isEditing: isEditing, initialMatch: isEditing ? matches.first : nil, onSave: { match in
+                    if authManager.isLoggedIn {
+                        if isEditing {
+                            updateMatch(match)
+                        } else {
+                            createMatch(match)
+                        }
+                    } else {
+                        errorMessage = "Du musst angemeldet sein, um das Spiel zu speichern."
+                    }
+                    showingAddMatch = false
+                    isEditing = false
+                }, onCancel: {
+                    showingAddMatch = false
+                    isEditing = false
+                })
+            }
+            .onAppear {
+                loadMatches()
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private func loadMatches() {
+        FirestoreManager.shared.getMatches { result in
+            switch result {
+            case .success(let loadedMatches):
+                matches = loadedMatches
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Spiele: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func createMatch(_ match: Match) {
+        FirestoreManager.shared.createMatch(match: match) { result in
+            switch result {
+            case .success:
+                loadMatches()
+            case .failure(let error):
+                errorMessage = "Fehler beim Hinzufügen des Spiels: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func updateMatch(_ match: Match) {
+        guard match.id != nil else { return }
+        FirestoreManager.shared.updateMatch(match: match) { result in
+            switch result {
+            case .success:
+                loadMatches()
+            case .failure(let error):
+                errorMessage = "Fehler beim Aktualisieren des Spiels: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func deleteMatch(_ match: Match) {
+        guard let id = match.id else { return }
+        FirestoreManager.shared.deleteMatch(matchID: id) { result in
+            switch result {
+            case .success:
+                loadMatches()
+            case .failure(let error):
+                errorMessage = "Fehler beim Löschen des Spiels: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+struct AddMatchView: View {
+    let isEditing: Bool
+    let initialMatch: Match?
+    let onSave: (Match) -> Void
+    let onCancel: () -> Void
+
+    @State private var heimVereinID: String = ""
+    @State private var gastVereinID: String = ""
+    @State private var datum: Date = Date()
+    @State private var ergebnis: String? = nil
+    @State private var stadion: String? = nil
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Spieldaten")) {
+                    TextField("Heim-Verein-ID", text: $heimVereinID)
+                    TextField("Gast-Verein-ID", text: $gastVereinID)
+                    DatePicker("Datum", selection: $datum, displayedComponents: .date)
+                    TextField("Ergebnis", text: Binding(
+                        get: { ergebnis ?? "" },
+                        set: { ergebnis = $0.isEmpty ? nil : $0 }
+                    ))
+                    TextField("Stadion", text: Binding(
+                        get: { stadion ?? "" },
+                        set: { stadion = $0.isEmpty ? nil : $0 }
+                    ))
+                }
+            }
+            .navigationTitle(isEditing ? "Spiel bearbeiten" : "Spiel anlegen")
+            .onAppear {
+                if let match = initialMatch {
+                    heimVereinID = match.heimVereinID ?? ""
+                    gastVereinID = match.gastVereinID ?? ""
+                    datum = match.datum
+                    ergebnis = match.ergebnis
+                    stadion = match.stadion
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        let match = Match(
+                            id: initialMatch?.id,
+                            heimVereinID: heimVereinID.isEmpty ? nil : heimVereinID,
+                            gastVereinID: gastVereinID.isEmpty ? nil : gastVereinID,
+                            datum: datum,
+                            ergebnis: ergebnis,
+                            stadion: stadion
+                        )
+                        onSave(match)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    MatchListView()
+        .environmentObject(AuthManager())
+}
+
+import Foundation
+import FirebaseFirestore
+
+struct Client: Identifiable, Codable, Equatable, Hashable {
+    @DocumentID var id: String?
+    var typ: String
+    var name: String
+    var vorname: String
+    var geschlecht: String
+    var vereinID: String?
+    var nationalitaet: [String]?
+    var geburtsdatum: Date?
+    var alter: Int?
+    var kontaktTelefon: String?
+    var kontaktEmail: String?
+    var adresse: String?
+    var liga: String?
+    var vertragBis: Date?
+    var vertragsOptionen: String?
+    var gehalt: Double?
+    var schuhgroesse: Int?
+    var schuhmarke: String?
+    var starkerFuss: String?
+    var groesse: Int?
+    var gewicht: Int?
+    var positionFeld: [String]?
+    var sprachen: [String]?
+    var lizenz: String?
+    var nationalmannschaft: String?
+    var profilbildURL: String?
+
+    // Equatable-Implementierung
+    static func == (lhs: Client, rhs: Client) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.typ == rhs.typ &&
+               lhs.name == rhs.name &&
+               lhs.vorname == rhs.vorname &&
+               lhs.geschlecht == rhs.geschlecht &&
+               lhs.vereinID == rhs.vereinID &&
+               lhs.nationalitaet == rhs.nationalitaet &&
+               lhs.geburtsdatum == rhs.geburtsdatum &&
+               lhs.alter == rhs.alter &&
+               lhs.kontaktTelefon == rhs.kontaktTelefon &&
+               lhs.kontaktEmail == rhs.kontaktEmail &&
+               lhs.adresse == rhs.adresse &&
+               lhs.liga == rhs.liga &&
+               lhs.vertragBis == rhs.vertragBis &&
+               lhs.vertragsOptionen == rhs.vertragsOptionen &&
+               lhs.gehalt == rhs.gehalt &&
+               lhs.schuhgroesse == rhs.schuhgroesse &&
+               lhs.schuhmarke == rhs.schuhmarke &&
+               lhs.starkerFuss == rhs.starkerFuss &&
+               lhs.groesse == rhs.groesse &&
+               lhs.gewicht == rhs.gewicht &&
+               lhs.positionFeld == rhs.positionFeld &&
+               lhs.sprachen == rhs.sprachen &&
+               lhs.lizenz == rhs.lizenz &&
+               lhs.nationalmannschaft == rhs.nationalmannschaft &&
+               lhs.profilbildURL == rhs.profilbildURL
+    }
+
+    // Hashable-Implementierung
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(typ)
+        hasher.combine(name)
+        hasher.combine(vorname)
+        hasher.combine(geschlecht)
+        hasher.combine(vereinID)
+        hasher.combine(nationalitaet)
+        hasher.combine(geburtsdatum)
+        hasher.combine(alter)
+        hasher.combine(kontaktTelefon)
+        hasher.combine(kontaktEmail)
+        hasher.combine(adresse)
+        hasher.combine(liga)
+        hasher.combine(vertragBis)
+        hasher.combine(vertragsOptionen)
+        hasher.combine(gehalt)
+        hasher.combine(schuhgroesse)
+        hasher.combine(schuhmarke)
+        hasher.combine(starkerFuss)
+        hasher.combine(groesse)
+        hasher.combine(gewicht)
+        hasher.combine(positionFeld)
+        hasher.combine(sprachen)
+        hasher.combine(lizenz)
+        hasher.combine(nationalmannschaft)
+        hasher.combine(profilbildURL)
+    }
+}
+
+struct Funktionär: Identifiable, Codable, Hashable {
+    @DocumentID var id: String?
+    var name: String
+    var vorname: String
+    var abteilung: String?
+    var vereinID: String?
+    var kontaktTelefon: String?
+    var kontaktEmail: String?
+    var adresse: String?
+    var clients: [String]?
+    var profilbildURL: String?
+    var geburtsdatum: Date?
+
+    // Equatable-Implementierung für Hashable
+    static func == (lhs: Funktionär, rhs: Funktionär) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.name == rhs.name &&
+               lhs.vorname == rhs.vorname &&
+               lhs.abteilung == rhs.abteilung &&
+               lhs.vereinID == rhs.vereinID &&
+               lhs.kontaktTelefon == rhs.kontaktTelefon &&
+               lhs.kontaktEmail == rhs.kontaktEmail &&
+               lhs.adresse == rhs.adresse &&
+               lhs.clients == rhs.clients &&
+               lhs.profilbildURL == rhs.profilbildURL &&
+               lhs.geburtsdatum == rhs.geburtsdatum
+    }
+
+    // Hashable-Implementierung
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+        hasher.combine(vorname)
+        hasher.combine(abteilung)
+        hasher.combine(vereinID)
+        hasher.combine(kontaktTelefon)
+        hasher.combine(kontaktEmail)
+        hasher.combine(adresse)
+        hasher.combine(clients)
+        hasher.combine(profilbildURL)
+        hasher.combine(geburtsdatum)
+    }
+
+}
+
+struct Contract: Identifiable, Codable {
+    @DocumentID var id: String?
+    var clientID: String?
+    var vereinID: String?
+    var startDatum: Date
+    var endDatum: Date?
+    var gehalt: Double?
+    var vertragsdetails: String?
+}
+
+struct Transfer: Identifiable, Codable {
+    @DocumentID var id: String?
+    var clientID: String?
+    var vonVereinID: String?
+    var zuVereinID: String?
+    var datum: Date
+    var gebuehr: Double?
+    var transferdetails: String?
+
+    // Benutzerdefinierter Initialisierer mit Standardwerten
+    init(
+        id: String? = nil,
+        clientID: String? = nil,
+        vonVereinID: String? = nil,
+        zuVereinID: String? = nil,
+        datum: Date = Date(), // Standardwert: aktuelles Datum
+        gebuehr: Double? = nil,
+        transferdetails: String? = nil
+    ) {
+        self.id = id
+        self.clientID = clientID
+        self.vonVereinID = vonVereinID
+        self.zuVereinID = zuVereinID
+        self.datum = datum
+        self.gebuehr = gebuehr
+        self.transferdetails = transferdetails
+    }
+}
+
+struct Club: Identifiable, Codable {
+    @DocumentID var id: String?
+    var name: String
+    var league: String?
+    var abteilung: String? // Neue Eigenschaft: "Männer", "Frauen" oder "gemischt"
+    var kontaktTelefon: String?
+    var kontaktEmail: String?
+    var adresse: String?
+    var clients: [String]?
+    var land: String?
+    var memberCount: Int?
+    var founded: String?
+    var logoURL: String?
+}
+
+struct Match: Identifiable, Codable {
+    @DocumentID var id: String?
+    var heimVereinID: String?
+    var gastVereinID: String?
+    var datum: Date
+    var ergebnis: String?
+    var stadion: String?
+}
+
+struct Sponsor: Identifiable, Codable {
+    @DocumentID var id: String?
+    var name: String
+    var kontaktTelefon: String?
+    var kontaktEmail: String?
+    var adresse: String?
+    var gesponsorteVereine: [String]?
+}
+
+struct Activity: Identifiable, Codable {
+    @DocumentID var id: String?
+    var clientID: String
+    var description: String
+    var timestamp: Date
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct SponsorListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var sponsors: [Sponsor] = []
+    @State private var showingAddSponsor = false
+    @State private var isEditing = false
+    @State private var errorMessage: String = ""
+    @State private var newSponsor = Sponsor(
+        id: nil,
+        name: "",
+        kontaktTelefon: nil,
+        kontaktEmail: nil,
+        adresse: nil,
+        gesponsorteVereine: nil
+    )
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(sponsors) { sponsor in
+                    VStack(alignment: .leading) {
+                        Text(sponsor.name)
+                            .font(.headline)
+                        if let kontaktTelefon = sponsor.kontaktTelefon {
+                            Text("Telefon: \(kontaktTelefon)")
+                        }
+                        if let kontaktEmail = sponsor.kontaktEmail {
+                            Text("E-Mail: \(kontaktEmail)")
+                        }
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteSponsor(sponsor)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                        Button {
+                            isEditing = true
+                            newSponsor = sponsor
+                            showingAddSponsor = true
+                        } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(isEditing ? "Sponsor bearbeiten" : "Sponsorübersicht")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Neuen Sponsor anlegen") {
+                        if authManager.isLoggedIn {
+                            showingAddSponsor = true
+                            isEditing = false
+                            newSponsor = Sponsor(
+                                id: nil,
+                                name: "",
+                                kontaktTelefon: nil,
+                                kontaktEmail: nil,
+                                adresse: nil,
+                                gesponsorteVereine: nil
+                            )
+                        } else {
+                            errorMessage = "Du musst angemeldet sein, um einen neuen Sponsor anzulegen."
+                        }
+                    }
+                    .disabled(!authManager.isLoggedIn)
+                }
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .sheet(isPresented: $showingAddSponsor) {
+                AddSponsorView(sponsor: $newSponsor, isEditing: isEditing, onSave: { sponsor in
+                    if authManager.isLoggedIn {
+                        if isEditing {
+                            updateSponsor(sponsor)
+                        } else {
+                            createSponsor(sponsor)
+                        }
+                    } else {
+                        errorMessage = "Du musst angemeldet sein, um den Sponsor zu speichern."
+                    }
+                    showingAddSponsor = false
+                    isEditing = false
+                    newSponsor = Sponsor(
+                        id: nil,
+                        name: "",
+                        kontaktTelefon: nil,
+                        kontaktEmail: nil,
+                        adresse: nil,
+                        gesponsorteVereine: nil
+                    )
+                }, onCancel: {
+                    showingAddSponsor = false
+                    isEditing = false
+                    newSponsor = Sponsor(
+                        id: nil,
+                        name: "",
+                        kontaktTelefon: nil,
+                        kontaktEmail: nil,
+                        adresse: nil,
+                        gesponsorteVereine: nil
+                    )
+                })
+            }
+            .onAppear {
+                loadSponsors()
+            }
+        }
+    }
+
+    private func loadSponsors() {
+        FirestoreManager.shared.getSponsors { result in
+            switch result {
+            case .success(let loadedSponsors):
+                sponsors = loadedSponsors
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Sponsoren: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func createSponsor(_ sponsor: Sponsor) {
+        FirestoreManager.shared.createSponsor(sponsor: sponsor) { result in
+            switch result {
+            case .success:
+                loadSponsors()
+            case .failure(let error):
+                errorMessage = "Fehler beim Hinzufügen des Sponsors: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func updateSponsor(_ sponsor: Sponsor) {
+        FirestoreManager.shared.updateSponsor(sponsor: sponsor) { result in
+            switch result {
+            case .success:
+                loadSponsors()
+            case .failure(let error):
+                errorMessage = "Fehler beim Aktualisieren des Sponsors: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func deleteSponsor(_ sponsor: Sponsor) {
+        guard let id = sponsor.id else { return }
+        FirestoreManager.shared.deleteSponsor(sponsorID: id) { result in
+            switch result {
+            case .success:
+                loadSponsors()
+            case .failure(let error):
+                errorMessage = "Fehler beim Löschen des Sponsors: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+struct AddSponsorView: View {
+    @Binding var sponsor: Sponsor
+    var isEditing: Bool
+    var onSave: (Sponsor) -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Sponsordaten")) {
+                    TextField("Name", text: $sponsor.name)
+                }
+
+                Section(header: Text("Kontaktinformationen")) {
+                    TextField("Telefon", text: Binding(
+                        get: { sponsor.kontaktTelefon ?? "" },
+                        set: { sponsor.kontaktTelefon = $0.isEmpty ? nil : $0 }
+                    ))
+                    TextField("E-Mail", text: Binding(
+                        get: { sponsor.kontaktEmail ?? "" },
+                        set: { sponsor.kontaktEmail = $0.isEmpty ? nil : $0 }
+                    ))
+                    TextField("Adresse", text: Binding(
+                        get: { sponsor.adresse ?? "" },
+                        set: { sponsor.adresse = $0.isEmpty ? nil : $0 }
+                    ))
+                }
+            }
+            .navigationTitle(isEditing ? "Sponsor bearbeiten" : "Sponsor anlegen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        onSave(sponsor)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    SponsorListView()
+        .environmentObject(AuthManager())
+}
+
+// SportsTransferApp.swift
+import SwiftUI
+import FirebaseCore
+import FirebaseFirestore
+
+@main
+struct SportsTransferApp: App {
+    @StateObject private var authManager = AuthManager()
+    @State private var selectedTab = 0
+
+    init() {
+        FirebaseApp.configure()
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            if authManager.isLoggedIn {
+                TabView(selection: $selectedTab) {
+                    switch authManager.userRole {
+                    case .mitarbeiter:
+                        EmployeeView()
+                            .environmentObject(authManager)
+                            .tabItem {
+                                Label("Mitarbeiter", systemImage: "person.2")
+                            }
+                            .tag(0)
+                    case .klient:
+                        if let client = loadClientForUser() {
+                            ClientView(client: client)
+                                .environmentObject(authManager)
+                                .tabItem {
+                                    Label("Profil", systemImage: "person.crop.circle")
+                                }
+                                .tag(1)
+                        } else {
+                            ProgressView("Lade Klientendaten...")
+                                .tabItem {
+                                    Label("Profil", systemImage: "person.crop.circle")
+                                }
+                                .tag(1)
+                        }
+                    case .gast:
+                        GuestView()
+                            .environmentObject(authManager)
+                            .tabItem {
+                                Label("Gast", systemImage: "person")
+                            }
+                            .tag(2)
+                    case .none:
+                        LoginView()
+                            .environmentObject(authManager)
+                            .tabItem {
+                                Label("Login", systemImage: "lock")
+                            }
+                            .tag(3)
+                    default:
+                        ClubListView()
+                            .environmentObject(authManager)
+                            .tabItem {
+                                Label("Vereine", systemImage: "building.2")
+                            }
+                            .tag(4)
+                    }
+                }
+            } else {
+                LoginView()
+                    .environmentObject(authManager)
+            }
+        }
+    }
+
+    private func loadClientForUser() -> Client? {
+        guard let userID = authManager.userID else { return nil }
+        var client: Client?
+        let dispatchGroup = DispatchGroup()
+        dispatchGroup.enter()
+        FirestoreManager.shared.getClients { result in
+            switch result {
+            case .success(let loadedClients):
+                client = loadedClients.first { $0.id == userID }
+            case .failure:
+                break
+            }
+            dispatchGroup.leave()
+        }
+        dispatchGroup.wait(timeout: .now() + 5) // Warte maximal 5 Sekunden
+        return client
+    }
+}
+
+import SwiftUI
+import FirebaseFirestore
+
+struct TransferListView: View {
+    @EnvironmentObject var authManager: AuthManager
+    @State private var transfers: [Transfer] = []
+    @State private var showingAddTransfer = false
+    @State private var isEditing = false
+    @State private var errorMessage: String = ""
+    @State private var selectedTransfer: Transfer? // Für Bearbeitung
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(transfers) { transfer in
+                    VStack(alignment: .leading) {
+                        if let clientID = transfer.clientID {
+                            Text("Klient: \(clientID)")
+                                .font(.headline)
+                        }
+                        if let vonVereinID = transfer.vonVereinID {
+                            Text("Von: \(vonVereinID)")
+                        }
+                        if let zuVereinID = transfer.zuVereinID {
+                            Text("Zu: \(zuVereinID)")
+                        }
+                        Text("Datum: \(dateFormatter.string(from: transfer.datum))")
+                    }
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            deleteTransfer(transfer)
+                        } label: {
+                            Label("Löschen", systemImage: "trash")
+                        }
+                        Button {
+                            isEditing = true
+                            selectedTransfer = transfer
+                            showingAddTransfer = true
+                        } label: {
+                            Label("Bearbeiten", systemImage: "pencil")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(isEditing ? "Transfer bearbeiten" : "Transferübersicht")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Neuen Transfer anlegen") {
+                        if authManager.isLoggedIn {
+                            showingAddTransfer = true
+                            isEditing = false
+                            selectedTransfer = nil
+                        } else {
+                            errorMessage = "Du musst angemeldet sein, um einen neuen Transfer anzulegen."
+                        }
+                    }
+                    .disabled(!authManager.isLoggedIn)
+                }
+            }
+            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                Alert(title: Text("Fehler"), message: Text(errorMessage), dismissButton: .default(Text("OK")) {
+                    errorMessage = ""
+                })
+            }
+            .sheet(isPresented: $showingAddTransfer) {
+                AddTransferView(
+                    isEditing: isEditing,
+                    initialTransfer: selectedTransfer,
+                    onSave: { transfer in
+                        if authManager.isLoggedIn {
+                            if isEditing {
+                                updateTransfer(transfer)
+                            } else {
+                                createTransfer(transfer)
+                            }
+                        } else {
+                            errorMessage = "Du musst angemeldet sein, um den Transfer zu speichern."
+                        }
+                        showingAddTransfer = false
+                        isEditing = false
+                    },
+                    onCancel: {
+                        showingAddTransfer = false
+                        isEditing = false
+                    }
+                )
+            }
+            .onAppear {
+                loadTransfers()
+            }
+        }
+    }
+
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
+    private func loadTransfers() {
+        FirestoreManager.shared.getTransfers { result in
+            switch result {
+            case .success(let loadedTransfers):
+                transfers = loadedTransfers
+            case .failure(let error):
+                errorMessage = "Fehler beim Laden der Transfers: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func createTransfer(_ transfer: Transfer) {
+        FirestoreManager.shared.createTransfer(transfer: transfer) { result in
+            switch result {
+            case .success:
+                loadTransfers()
+            case .failure(let error):
+                errorMessage = "Fehler beim Hinzufügen des Transfers: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func updateTransfer(_ transfer: Transfer) {
+        FirestoreManager.shared.updateTransfer(transfer: transfer) { result in
+            switch result {
+            case .success:
+                loadTransfers()
+            case .failure(let error):
+                errorMessage = "Fehler beim Aktualisieren des Transfers: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func deleteTransfer(_ transfer: Transfer) {
+        guard let id = transfer.id else { return }
+        FirestoreManager.shared.deleteTransfer(transferID: id) { result in
+            switch result {
+            case .success:
+                loadTransfers()
+            case .failure(let error):
+                errorMessage = "Fehler beim Löschen des Transfers: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+struct AddTransferView: View {
+    let isEditing: Bool
+    let initialTransfer: Transfer?
+    let onSave: (Transfer) -> Void
+    let onCancel: () -> Void
+
+    @State private var clientID: String = ""
+    @State private var vonVereinID: String = ""
+    @State private var zuVereinID: String = ""
+    @State private var datum: Date = Date()
+    @State private var gebuehr: Double? = nil
+    @State private var transferdetails: String? = nil
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Transferdaten")) {
+                    TextField("Klient-ID", text: $clientID)
+                    TextField("Von Verein-ID", text: $vonVereinID)
+                    TextField("Zu Verein-ID", text: $zuVereinID)
+                    DatePicker("Datum", selection: $datum, displayedComponents: .date)
+                    TextField("Gebühr", value: $gebuehr, format: .number)
+                    TextField("Transferdetails", text: Binding(
+                        get: { transferdetails ?? "" },
+                        set: { transferdetails = $0.isEmpty ? nil : $0 }
+                    ))
+                }
+            }
+            .navigationTitle(isEditing ? "Transfer bearbeiten" : "Transfer anlegen")
+            .onAppear {
+                if let transfer = initialTransfer {
+                    clientID = transfer.clientID ?? ""
+                    vonVereinID = transfer.vonVereinID ?? ""
+                    zuVereinID = transfer.zuVereinID ?? ""
+                    datum = transfer.datum
+                    gebuehr = transfer.gebuehr
+                    transferdetails = transfer.transferdetails
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        let transfer = Transfer(
+                            id: initialTransfer?.id,
+                            clientID: clientID.isEmpty ? nil : clientID,
+                            vonVereinID: vonVereinID.isEmpty ? nil : vonVereinID,
+                            zuVereinID: zuVereinID.isEmpty ? nil : zuVereinID,
+                            datum: datum,
+                            gebuehr: gebuehr,
+                            transferdetails: transferdetails
+                        )
+                        onSave(transfer)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    TransferListView()
+        .environmentObject(AuthManager())
+}
+
+

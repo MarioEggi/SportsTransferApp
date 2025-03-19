@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bucket
+   uuid = "E6183A0B-6123-4E85-A178-374DD81F5232"
+   type = "1"
+   version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "42978CC0-B5A3-4A5B-8C59-E9AC88F368D6"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "SportsTransfer/ContactsView.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "355"
+            endingLineNumber = "355"
+            landmarkName = "contactDetailView(for:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "42978CC0-B5A3-4A5B-8C59-E9AC88F368D6 - 1667e87d4da7d18"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "SportsTransfer.ContactsView.contactDetailView(for: SportsTransfer.ContactsView.ContactItem) -&gt; some"
+                  moduleName = "SportsTransfer.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/marioeggimann/Documents/Sports%20Transfer/Digital/App/SportsTransfer/SportsTransfer/ContactsView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "355"
+                  endingLineNumber = "355">
+               </Location>
+               <Location
+                  uuid = "42978CC0-B5A3-4A5B-8C59-E9AC88F368D6 - 1667e87d4da7d18"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "SportsTransfer.ContactsView.contactDetailView(for: SportsTransfer.ContactsView.ContactItem) -&gt; some"
+                  moduleName = "SportsTransfer.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/marioeggimann/Documents/Sports%20Transfer/Digital/App/SportsTransfer/SportsTransfer/ContactsView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "355"
+                  endingLineNumber = "355">
+               </Location>
+               <Location
+                  uuid = "42978CC0-B5A3-4A5B-8C59-E9AC88F368D6 - 405183746fbe4b51"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (SportsTransfer.Client) -&gt; Swift.Bool in SportsTransfer.ContactsView.contactDetailView(for: SportsTransfer.ContactsView.ContactItem) -&gt; some"
+                  moduleName = "SportsTransfer.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/marioeggimann/Documents/Sports%20Transfer/Digital/App/SportsTransfer/SportsTransfer/ContactsView.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "355"
+                  endingLineNumber = "355">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
+</Bucket>
