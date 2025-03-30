@@ -383,7 +383,7 @@ struct TransferProcess: Identifiable, Codable {
         mitarbeiterID: String? = nil,
         priority: Int? = nil,
         konditionen: String? = nil,
-        art: String? = nil
+        art: String? = nil,
     ) {
         self.id = id
         self.clientID = clientID
@@ -418,9 +418,9 @@ struct Step: Identifiable, Codable {
     var status: String // z. B. "geplant", "abgeschlossen"
     var datum: Date
     var notizen: String?
-    // Neue Felder aus Feedback
     var erfolgschance: Int? // Erfolgschancen (0-100)
     var checkliste: [String]? // Neu: z. B. ["CV bereit", "Video hochgeladen"]
+    var funktionär: String?
 }
 
 struct Reminder: Identifiable, Codable {
