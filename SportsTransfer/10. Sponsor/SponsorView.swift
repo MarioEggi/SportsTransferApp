@@ -7,103 +7,151 @@ struct SponsorView: View {
     @State var sponsor: Sponsor
     @State private var showingEditSheet = false
 
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 15) {
-                    VStack(spacing: 10) {
-                        Text(sponsor.name)
-                            .font(.title2)
-                            .bold()
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.white) // Weiße Schrift
+                    Text(sponsor.name)
+                        .font(.title2)
+                        .bold()
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(textColor)
+                        .padding(.top)
 
-                        if let category = sponsor.category {
-                            Text("Kategorie: \(category)")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
-
-                        if let kontaktTelefon = sponsor.kontaktTelefon {
-                            HStack {
-                                Text("Telefon: \(kontaktTelefon)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white) // Weiße Schrift
-                                Spacer()
-                                Button(action: { openURL("tel:\(kontaktTelefon)") }) {
-                                    Image(systemName: "phone.fill")
-                                        .foregroundColor(.white) // Weißes Symbol
+                    List {
+                        Section(header: Text("Details").foregroundColor(textColor)) {
+                            VStack(spacing: 10) {
+                                if let category = sponsor.category {
+                                    labeledField(label: "Kategorie", value: category)
+                                }
+                                if let kontaktTelefon = sponsor.kontaktTelefon {
+                                    HStack {
+                                        labeledField(label: "Telefon", value: kontaktTelefon)
+                                        Spacer()
+                                        Button(action: { openURL("tel:\(kontaktTelefon)") }) {
+                                            Image(systemName: "phone.fill")
+                                                .foregroundColor(accentColor)
+                                        }
+                                    }
+                                }
+                                if let kontaktEmail = sponsor.kontaktEmail {
+                                    HStack {
+                                        labeledField(label: "E-Mail", value: kontaktEmail)
+                                        Spacer()
+                                        Button(action: { openURL("mailto:\(kontaktEmail)") }) {
+                                            Image(systemName: "envelope.fill")
+                                                .foregroundColor(accentColor)
+                                        }
+                                    }
+                                }
+                                if let adresse = sponsor.adresse {
+                                    labeledField(label: "Adresse", value: adresse)
                                 }
                             }
+                            .padding(.vertical, 8)
                         }
-
-                        if let kontaktEmail = sponsor.kontaktEmail {
-                            HStack {
-                                Text("E-Mail: \(kontaktEmail)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white) // Weiße Schrift
-                                Spacer()
-                                Button(action: { openURL("mailto:\(kontaktEmail)") }) {
-                                    Image(systemName: "envelope.fill")
-                                        .foregroundColor(.white) // Weißes Symbol
-                                }
-                            }
-                        }
-
-                        if let adresse = sponsor.adresse {
-                            Text("Adresse: \(adresse)")
-                                .font(.subheadline)
-                                .foregroundColor(.white) // Weiße Schrift
-                        }
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(cardBackgroundColor)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                )
+                                .padding(.vertical, 2)
+                        )
 
                         if let gesponsorteVereine = sponsor.gesponsorteVereine, !gesponsorteVereine.isEmpty {
-                            Text("Gesponsorte Vereine:")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                            ForEach(gesponsorteVereine, id: \.self) { verein in
-                                Text(verein)
-                                    .font(.subheadline)
-                                    .foregroundColor(.white) // Weiße Schrift
+                            Section(header: Text("Gesponsorte Vereine").foregroundColor(textColor)) {
+                                VStack(spacing: 10) {
+                                    ForEach(gesponsorteVereine, id: \.self) { verein in
+                                        Text(verein)
+                                            .foregroundColor(textColor)
+                                            .padding(.vertical, 4)
+                                            .padding(.horizontal, 8)
+                                    }
+                                }
+                                .padding(.vertical, 8)
                             }
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(cardBackgroundColor)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .padding(.vertical, 2)
+                            )
                         }
 
                         if let contacts = sponsor.contacts, !contacts.isEmpty {
-                            Text("Ansprechpartner:")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                            ForEach(contacts) { contact in
-                                VStack(alignment: .leading) {
-                                    Text("\(contact.name) (\(contact.region))")
-                                        .font(.subheadline)
-                                        .foregroundColor(.white) // Weiße Schrift
-                                    if let telefon = contact.telefon {
-                                        Text("Telefon: \(telefon)")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
+                            Section(header: Text("Ansprechpartner").foregroundColor(textColor)) {
+                                ForEach(contacts) { contact in
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(contact.name) (\(contact.region))")
+                                            .font(.subheadline)
+                                            .foregroundColor(textColor)
+                                        if let telefon = contact.telefon {
+                                            Text("Telefon: \(telefon)")
+                                                .font(.caption)
+                                                .foregroundColor(secondaryTextColor)
+                                        }
+                                        if let email = contact.email {
+                                            Text("E-Mail: \(email)")
+                                                .font(.caption)
+                                                .foregroundColor(secondaryTextColor)
+                                        }
                                     }
-                                    if let email = contact.email {
-                                        Text("E-Mail: \(email)")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
                                 }
                             }
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(cardBackgroundColor)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .padding(.vertical, 2)
+                            )
                         }
                     }
-                    .padding()
-                    .background(Color.gray.opacity(0.2)) // Dunklerer Hintergrund
-                    .cornerRadius(10)
+                    .listStyle(PlainListStyle())
+                    .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundColor)
+                    .foregroundColor(textColor)
+
+                    if authManager.userRole == .mitarbeiter {
+                        Button(action: { showingEditSheet = true }) {
+                            Text("Bearbeiten")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(accentColor)
+                                .foregroundColor(textColor)
+                                .cornerRadius(10)
+                        }
+                        .padding()
+                    }
                 }
-                .padding()
-                .background(Color.black) // Schwarzer Hintergrund für die gesamte View
+                .background(backgroundColor)
                 .navigationTitle(sponsor.name)
                 .navigationBarTitleDisplayMode(.inline)
-                .foregroundColor(.white) // Weiße Schrift für den Titel
+                .foregroundColor(textColor)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: { showingEditSheet = true }) {
-                            Image(systemName: "pencil")
-                                .foregroundColor(.white) // Weißes Symbol
+                        if authManager.userRole == .mitarbeiter {
+                            Button(action: { showingEditSheet = true }) {
+                                Image(systemName: "pencil")
+                                    .foregroundColor(accentColor)
+                            }
                         }
                     }
                 }
@@ -119,12 +167,23 @@ struct SponsorView: View {
                                 }
                             }
                         },
-                        onCancel: {
-                            showingEditSheet = false
-                        }
+                        onCancel: { showingEditSheet = false }
                     )
                 }
             }
+        }
+    }
+
+    private func labeledField(label: String, value: String?) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(secondaryTextColor)
+            Spacer()
+            Text(value ?? "Nicht angegeben")
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .foregroundColor(textColor)
         }
     }
 

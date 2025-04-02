@@ -1,15 +1,18 @@
+//
+//  Constants.swift
+
 import SwiftUI
 
 struct Constants {
     static let nationalities = ["Deutschland", "Schweiz", "Österreich", "Frankreich", "Italien", "Spanien"]
-    static let positionOptions = ["Stürmer", "Mittelfeld", "Verteidiger", "Torwart"]
+    static let positionOptions = ["Torwart", "Innenverteidiger", "Außenverteidigung Links", "Außenverteidigung Rechts", "6", "8 offensiv", "8 defensiv", "8 BoxtoBox", "10", "Linkes Mittelfeld", "Rechtes Mittelfeld", "Sturm außen", "Sturm zentral",]
     static let strongFootOptions = ["Rechts", "Links", "Beidfüßig"]
     static let functionaryPositionOptions = ["Trainer", "Manager", "Sportdirektor"]
-    static let leaguesMale = ["Bundesliga", "2. Bundesliga", "Premier League"]
-    static let leaguesFemale = ["Frauen-Bundesliga", "2. Frauen-Bundesliga"]
+    static let leaguesMale = ["1. Bundesliga", "2. Bundesliga", "3. Liga","Premier League"]
+    static let leaguesFemale = ["1. Bundesliga", "2. Bundesliga", "NWSL", "WSL England", "WSL Schweiz"]
     static let sponsorCategories = ["Sportartikelhersteller", "Finanzdienstleister", "Lebensmittel", "Technologie", "Andere"]
     static let activityCategories = ["Besprechung", "Training", "Spiel", "Verhandlung", "Sonstiges"]
-    static let contactTypes = ["Telefon", "E-Mail", "Besuch", "Teams-Meeting"] // Hinzugefügt
+    static let contactTypes = ["Telefon", "E-Mail", "Besuch", "Teams-Meeting", "WhatsApp", "Nachricht"] // Hinzugefügt
     static let contactTopics = ["Besuch", "Vertragsverhandlung", "Feedback", "Trainingsplan"] // Hinzugefügt
 
     enum SortOption: String, CaseIterable {

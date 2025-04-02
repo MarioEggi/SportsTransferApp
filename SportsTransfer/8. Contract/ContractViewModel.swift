@@ -1,3 +1,6 @@
+//
+//  ContractViewModel.swift
+
 import SwiftUI
 import FirebaseFirestore
 
@@ -32,8 +35,8 @@ class ContractViewModel: ObservableObject {
         }
 
         do {
-            let (loadedClients, _) = try await FirestoreManager.shared.getClients(limit: 1000)
-            let (loadedClubs, _) = try await FirestoreManager.shared.getClubs(limit: 1000)
+            let (loadedClients, _) = try await FirestoreManager.shared.getClients(lastDocument: nil, limit: 1000)
+            let (loadedClubs, _) = try await FirestoreManager.shared.getClubs(lastDocument: nil, limit: 1000)
             await MainActor.run {
                 clients = loadedClients
                 clubs = loadedClubs

@@ -32,13 +32,16 @@ struct Client: Identifiable, Codable, Equatable, Hashable {
     var transfermarktID: String?
     var userID: String?
     var createdBy: String?
-    // Neue Felder aus Feedback
     var konditionen: String? // Gehalt und Vertragsdetails
     var art: String? // z. B. "Vereinswechsel", "Vertragsverlängerung"
     var spielerCV: String? // URL zu Spieler-CV
     var video: String? // URL zu Video
+    var spielstil: String? // "offensiv" oder "defensiv"
+    var tempo: Int? // 0-100 (Geschwindigkeit)
+    var zweikampfstärke: Int? // 0-100
+    var einsGegenEins: Int?
+    var globalID: String?
 
-    // Expliziter Initialisierer
     init(
         id: String? = nil,
         typ: String,
@@ -73,7 +76,12 @@ struct Client: Identifiable, Codable, Equatable, Hashable {
         konditionen: String? = nil,
         art: String? = nil,
         spielerCV: String? = nil,
-        video: String? = nil
+        video: String? = nil,
+        spielstil: String? = nil,
+        tempo: Int? = nil,
+        zweikampfstärke: Int? = nil,
+        einsGegenEins: Int? = nil,
+        globalID: String? = nil
     ) {
         self.id = id
         self.typ = typ
@@ -109,6 +117,181 @@ struct Client: Identifiable, Codable, Equatable, Hashable {
         self.art = art
         self.spielerCV = spielerCV
         self.video = video
+        self.spielstil = spielstil
+        self.tempo = tempo
+        self.zweikampfstärke = zweikampfstärke
+        self.einsGegenEins = einsGegenEins
+        self.globalID = globalID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case typ
+        case name
+        case vorname
+        case geschlecht
+        case abteilung
+        case vereinID
+        case nationalitaet
+        case geburtsdatum
+        case alter
+        case kontaktTelefon
+        case kontaktEmail
+        case adresse
+        case liga
+        case vertragBis
+        case vertragsOptionen
+        case gehalt
+        case schuhgroesse
+        case schuhmarke
+        case starkerFuss
+        case groesse
+        case gewicht
+        case positionFeld
+        case sprachen
+        case lizenz
+        case nationalmannschaft
+        case profilbildURL
+        case transfermarktID
+        case userID
+        case createdBy
+        case konditionen
+        case art
+        case spielerCV
+        case video
+        case spielstil
+        case tempo
+        case zweikampfstärke
+        case einsGegenEins
+        case globalID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+        self.typ = try container.decode(String.self, forKey: .typ)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.vorname = try container.decode(String.self, forKey: .vorname)
+        self.geschlecht = try container.decode(String.self, forKey: .geschlecht)
+        self.abteilung = try container.decodeIfPresent(String.self, forKey: .abteilung)
+        self.vereinID = try container.decodeIfPresent(String.self, forKey: .vereinID)
+        self.nationalitaet = try container.decodeIfPresent([String].self, forKey: .nationalitaet)
+        self.geburtsdatum = try container.decodeIfPresent(Date.self, forKey: .geburtsdatum)
+        self.alter = try container.decodeIfPresent(Int.self, forKey: .alter)
+        self.kontaktTelefon = try container.decodeIfPresent(String.self, forKey: .kontaktTelefon)
+        self.kontaktEmail = try container.decodeIfPresent(String.self, forKey: .kontaktEmail)
+        self.adresse = try container.decodeIfPresent(String.self, forKey: .adresse)
+        self.liga = try container.decodeIfPresent(String.self, forKey: .liga)
+        self.vertragBis = try container.decodeIfPresent(Date.self, forKey: .vertragBis)
+        self.vertragsOptionen = try container.decodeIfPresent(String.self, forKey: .vertragsOptionen)
+        self.gehalt = try container.decodeIfPresent(Double.self, forKey: .gehalt)
+        self.schuhgroesse = try container.decodeIfPresent(Int.self, forKey: .schuhgroesse)
+        self.schuhmarke = try container.decodeIfPresent(String.self, forKey: .schuhmarke)
+        self.starkerFuss = try container.decodeIfPresent(String.self, forKey: .starkerFuss)
+        self.groesse = try container.decodeIfPresent(Int.self, forKey: .groesse)
+        self.gewicht = try container.decodeIfPresent(Int.self, forKey: .gewicht)
+        self.positionFeld = try container.decodeIfPresent([String].self, forKey: .positionFeld)
+        self.sprachen = try container.decodeIfPresent([String].self, forKey: .sprachen)
+        self.lizenz = try container.decodeIfPresent(String.self, forKey: .lizenz)
+        self.nationalmannschaft = try container.decodeIfPresent(String.self, forKey: .nationalmannschaft)
+        self.profilbildURL = try container.decodeIfPresent(String.self, forKey: .profilbildURL)
+        self.transfermarktID = try container.decodeIfPresent(String.self, forKey: .transfermarktID)
+        self.userID = try container.decodeIfPresent(String.self, forKey: .userID)
+        self.createdBy = try container.decodeIfPresent(String.self, forKey: .createdBy)
+        self.konditionen = try container.decodeIfPresent(String.self, forKey: .konditionen)
+        self.art = try container.decodeIfPresent(String.self, forKey: .art)
+        self.spielerCV = try container.decodeIfPresent(String.self, forKey: .spielerCV)
+        self.video = try container.decodeIfPresent(String.self, forKey: .video)
+        self.spielstil = try container.decodeIfPresent(String.self, forKey: .spielstil)
+        self.globalID = try container.decodeIfPresent(String.self, forKey: .globalID)
+
+        do {
+            if container.contains(.tempo) {
+                if let tempoString = try? container.decode(String.self, forKey: .tempo), tempoString.isEmpty {
+                    self.tempo = nil
+                } else {
+                    self.tempo = try container.decodeIfPresent(Int.self, forKey: .tempo)
+                }
+            } else {
+                self.tempo = nil
+            }
+        } catch {
+            print("Fehler beim Dekodieren von tempo: \(error)")
+            self.tempo = nil
+        }
+
+        do {
+            if container.contains(.zweikampfstärke) {
+                if let zweikampfstärkeString = try? container.decode(String.self, forKey: .zweikampfstärke), zweikampfstärkeString.isEmpty {
+                    self.zweikampfstärke = nil
+                } else {
+                    self.zweikampfstärke = try container.decodeIfPresent(Int.self, forKey: .zweikampfstärke)
+                }
+            } else {
+                self.zweikampfstärke = nil
+            }
+        } catch {
+            print("Fehler beim Dekodieren von zweikampfstärke: \(error)")
+            self.zweikampfstärke = nil
+        }
+
+        do {
+            if container.contains(.einsGegenEins) {
+                if let einsGegenEinsString = try? container.decode(String.self, forKey: .einsGegenEins), einsGegenEinsString.isEmpty {
+                    self.einsGegenEins = nil
+                } else {
+                    self.einsGegenEins = try container.decodeIfPresent(Int.self, forKey: .einsGegenEins)
+                }
+            } else {
+                self.einsGegenEins = nil
+            }
+        } catch {
+            print("Fehler beim Dekodieren von einsGegenEins: \(error)")
+            self.einsGegenEins = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(typ, forKey: .typ)
+        try container.encode(name, forKey: .name)
+        try container.encode(vorname, forKey: .vorname)
+        try container.encode(geschlecht, forKey: .geschlecht)
+        try container.encodeIfPresent(abteilung, forKey: .abteilung)
+        try container.encodeIfPresent(vereinID, forKey: .vereinID)
+        try container.encodeIfPresent(nationalitaet, forKey: .nationalitaet)
+        try container.encodeIfPresent(geburtsdatum, forKey: .geburtsdatum)
+        try container.encodeIfPresent(alter, forKey: .alter)
+        try container.encodeIfPresent(kontaktTelefon, forKey: .kontaktTelefon)
+        try container.encodeIfPresent(kontaktEmail, forKey: .kontaktEmail)
+        try container.encodeIfPresent(adresse, forKey: .adresse)
+        try container.encodeIfPresent(liga, forKey: .liga)
+        try container.encodeIfPresent(vertragBis, forKey: .vertragBis)
+        try container.encodeIfPresent(vertragsOptionen, forKey: .vertragsOptionen)
+        try container.encodeIfPresent(gehalt, forKey: .gehalt)
+        try container.encodeIfPresent(schuhgroesse, forKey: .schuhgroesse)
+        try container.encodeIfPresent(schuhmarke, forKey: .schuhmarke)
+        try container.encodeIfPresent(starkerFuss, forKey: .starkerFuss)
+        try container.encodeIfPresent(groesse, forKey: .groesse)
+        try container.encodeIfPresent(gewicht, forKey: .gewicht)
+        try container.encodeIfPresent(positionFeld, forKey: .positionFeld)
+        try container.encodeIfPresent(sprachen, forKey: .sprachen)
+        try container.encodeIfPresent(lizenz, forKey: .lizenz)
+        try container.encodeIfPresent(nationalmannschaft, forKey: .nationalmannschaft)
+        try container.encodeIfPresent(profilbildURL, forKey: .profilbildURL)
+        try container.encodeIfPresent(transfermarktID, forKey: .transfermarktID)
+        try container.encodeIfPresent(userID, forKey: .userID)
+        try container.encodeIfPresent(createdBy, forKey: .createdBy)
+        try container.encodeIfPresent(konditionen, forKey: .konditionen)
+        try container.encodeIfPresent(art, forKey: .art)
+        try container.encodeIfPresent(spielerCV, forKey: .spielerCV)
+        try container.encodeIfPresent(video, forKey: .video)
+        try container.encodeIfPresent(spielstil, forKey: .spielstil)
+        try container.encodeIfPresent(tempo, forKey: .tempo)
+        try container.encodeIfPresent(zweikampfstärke, forKey: .zweikampfstärke)
+        try container.encodeIfPresent(einsGegenEins, forKey: .einsGegenEins)
+        try container.encodeIfPresent(globalID, forKey: .globalID)
     }
 
     static func == (lhs: Client, rhs: Client) -> Bool {
@@ -145,7 +328,8 @@ struct Client: Identifiable, Codable, Equatable, Hashable {
                lhs.konditionen == rhs.konditionen &&
                lhs.art == rhs.art &&
                lhs.spielerCV == rhs.spielerCV &&
-               lhs.video == rhs.video
+               lhs.video == rhs.video &&
+               lhs.globalID == rhs.globalID
     }
 
     func hash(into hasher: inout Hasher) {
@@ -183,6 +367,7 @@ struct Client: Identifiable, Codable, Equatable, Hashable {
         hasher.combine(art)
         hasher.combine(spielerCV)
         hasher.combine(video)
+        hasher.combine(globalID)
     }
 }
 
@@ -218,7 +403,7 @@ struct Funktionär: Identifiable, Codable, Hashable {
         positionImVerein: String? = nil,
         mannschaft: String? = nil,
         nationalitaet: [String]? = nil,
-        functionaryDocumentURL: String? = nil // Hinzugefügt
+        functionaryDocumentURL: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -279,6 +464,7 @@ struct Funktionär: Identifiable, Codable, Hashable {
         self.positionImVerein = try container.decodeIfPresent(String.self, forKey: .positionImVerein)
         self.mannschaft = try container.decodeIfPresent(String.self, forKey: .mannschaft)
         self.nationalitaet = try container.decodeIfPresent([String].self, forKey: .nationalitaet)
+        self.functionaryDocumentURL = try container.decodeIfPresent(String.self, forKey: .functionaryDocumentURL)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -297,6 +483,7 @@ struct Funktionär: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(positionImVerein, forKey: .positionImVerein)
         try container.encodeIfPresent(mannschaft, forKey: .mannschaft)
         try container.encodeIfPresent(nationalitaet, forKey: .nationalitaet)
+        try container.encodeIfPresent(functionaryDocumentURL, forKey: .functionaryDocumentURL)
     }
 
     static func == (lhs: Funktionär, rhs: Funktionär) -> Bool {
@@ -354,21 +541,27 @@ struct Contract: Identifiable, Codable, Equatable {
     }
 }
 
-struct TransferProcess: Identifiable, Codable {
+struct TransferProcess: Identifiable, Codable, Hashable, Equatable {
     @DocumentID var id: String?
     var clientID: String
-    var vereinID: String // Der Verein, mit dem der Prozess läuft
-    var status: String // z. B. "in Bearbeitung", "abgeschlossen"
+    var vereinID: String
+    var status: String // z. B. "in Bearbeitung", "abgeschlossen", "abgebrochen"
     var startDatum: Date
-    var schritte: [Step] // Liste der Prozess-Schritte
-    var erinnerungen: [Reminder]? // Optional: Erinnerungen
-    var hinweise: [Note]? // Optional: Hinweise
-    var transferDetails: TransferDetails? // Optional: Details des Transfers
-    // Neue Felder aus Feedback
-    var mitarbeiterID: String? // Verantwortlicher Mitarbeiter
-    var priority: Int? // Priorität (1-5)
-    var konditionen: String? // Neu: Gehalt/Vertragsdetails
-    var art: String? // Neu: "Vereinswechsel", "Vertragsverlängerung"
+    var schritte: [Step]
+    var erinnerungen: [Reminder]?
+    var hinweise: [Note]?
+    var transferDetails: TransferDetails?
+    var mitarbeiterID: String?
+    var priority: Int? // 1-5
+    var konditionen: String?
+    var art: String? // "Vereinswechsel", "Vertragsverlängerung"
+    var title: String?
+    var sponsorID: String?
+    var funktionärID: String? // Verknüpfung mit Funktionär
+    var kontaktInitiator: String? // "Verein", "Wir", "Sponsor"
+    var abteilung: String? // "Frauen", "Männer"
+    var gesuchtePositionen: [String]? // z. B. ["Innenverteidigerin", "Mittelfeldspielerin"]
+    var liga: String?
 
     init(
         id: String? = nil,
@@ -384,6 +577,12 @@ struct TransferProcess: Identifiable, Codable {
         priority: Int? = nil,
         konditionen: String? = nil,
         art: String? = nil,
+        title: String? = nil,
+        sponsorID: String? = nil,
+        funktionärID: String? = nil,
+        kontaktInitiator: String? = nil,
+        abteilung: String? = nil,
+        gesuchtePositionen: [String]? = nil
     ) {
         self.id = id
         self.clientID = clientID
@@ -398,10 +597,307 @@ struct TransferProcess: Identifiable, Codable {
         self.priority = priority
         self.konditionen = konditionen
         self.art = art
+        self.title = title
+        self.sponsorID = sponsorID
+        self.funktionärID = funktionärID
+        self.kontaktInitiator = kontaktInitiator
+        self.abteilung = abteilung
+        self.gesuchtePositionen = gesuchtePositionen
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, clientID, vereinID, status, startDatum, schritte, erinnerungen, hinweise, transferDetails
+        case mitarbeiterID, priority, konditionen, art, title, sponsorID
+        case funktionärID, kontaktInitiator, abteilung, gesuchtePositionen
+    }
+
+    static func == (lhs: TransferProcess, rhs: TransferProcess) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.clientID == rhs.clientID &&
+               lhs.vereinID == rhs.vereinID &&
+               lhs.status == rhs.status &&
+               lhs.startDatum == rhs.startDatum &&
+               lhs.schritte == rhs.schritte &&
+               lhs.erinnerungen == rhs.erinnerungen &&
+               lhs.hinweise == rhs.hinweise &&
+               lhs.transferDetails == rhs.transferDetails &&
+               lhs.mitarbeiterID == rhs.mitarbeiterID &&
+               lhs.priority == rhs.priority &&
+               lhs.konditionen == rhs.konditionen &&
+               lhs.art == rhs.art &&
+               lhs.title == rhs.title &&
+               lhs.sponsorID == rhs.sponsorID &&
+               lhs.funktionärID == rhs.funktionärID &&
+               lhs.kontaktInitiator == rhs.kontaktInitiator &&
+               lhs.abteilung == rhs.abteilung &&
+               lhs.gesuchtePositionen == rhs.gesuchtePositionen
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(clientID)
+        hasher.combine(vereinID)
+        hasher.combine(status)
+        hasher.combine(startDatum)
+        hasher.combine(schritte)
+        hasher.combine(erinnerungen)
+        hasher.combine(hinweise)
+        hasher.combine(transferDetails)
+        hasher.combine(mitarbeiterID)
+        hasher.combine(priority)
+        hasher.combine(konditionen)
+        hasher.combine(art)
+        hasher.combine(title)
+        hasher.combine(sponsorID)
+        hasher.combine(funktionärID)
+        hasher.combine(kontaktInitiator)
+        hasher.combine(abteilung)
+        hasher.combine(gesuchtePositionen)
     }
 }
 
-struct TransferDetails: Identifiable, Codable {
+struct Step: Identifiable, Codable, Equatable, Hashable {
+    var id: String = UUID().uuidString
+    var typ: String // z. B. "initialeKontaktaufnahme", "vertragVerhandeln"
+    var status: String // z. B. "geplant", "abgeschlossen"
+    var datum: Date
+    var notizen: String?
+    var erfolgschance: Int? // Erfolgschancen (0-100)
+    var checkliste: [String]? // z. B. ["CV bereit", "Video hochgeladen"]
+    var funktionär: String?
+    var title: String?
+    var entscheidung: String? // Neu: "Ja", "Nein", "Vielleicht"
+    
+    enum CodingKeys: String, CodingKey {
+        case id, typ, status, datum, notizen, erfolgschance, checkliste, funktionär, title, entscheidung
+    }
+    
+    static func == (lhs: Step, rhs: Step) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.typ == rhs.typ &&
+               lhs.status == rhs.status &&
+               lhs.datum == rhs.datum &&
+               lhs.notizen == rhs.notizen &&
+               lhs.erfolgschance == rhs.erfolgschance &&
+               lhs.checkliste == rhs.checkliste &&
+               lhs.funktionär == rhs.funktionär &&
+               lhs.title == rhs.title &&
+               lhs.entscheidung == rhs.entscheidung
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(typ)
+        hasher.combine(status)
+        hasher.combine(datum)
+        hasher.combine(notizen)
+        hasher.combine(erfolgschance)
+        hasher.combine(checkliste)
+        hasher.combine(funktionär)
+        hasher.combine(title)
+        hasher.combine(entscheidung)
+    }
+}
+
+struct SponsoringProcess: Identifiable, Codable, Hashable, Equatable {
+    @DocumentID var id: String?
+    var clientID: String
+    var sponsorID: String
+    var status: String
+    var startDatum: Date
+    var schritte: [Step]
+    var erinnerungen: [Reminder]?
+    var hinweise: [Note]?
+    var mitarbeiterID: String?
+    var priority: Int?
+    var konditionen: String?
+    var art: String?
+    var title: String?
+    var funktionärID: String?
+    var kontaktInitiator: String?
+
+    init(
+        id: String? = nil,
+        clientID: String,
+        sponsorID: String,
+        status: String = "in Bearbeitung",
+        startDatum: Date = Date(),
+        schritte: [Step] = [],
+        erinnerungen: [Reminder]? = nil,
+        hinweise: [Note]? = nil,
+        mitarbeiterID: String? = nil,
+        priority: Int? = nil,
+        konditionen: String? = nil,
+        art: String? = nil,
+        title: String? = nil,
+        funktionärID: String? = nil,
+        kontaktInitiator: String? = nil
+    ) {
+        self.id = id
+        self.clientID = clientID
+        self.sponsorID = sponsorID
+        self.status = status
+        self.startDatum = startDatum
+        self.schritte = schritte
+        self.erinnerungen = erinnerungen
+        self.hinweise = hinweise
+        self.mitarbeiterID = mitarbeiterID
+        self.priority = priority
+        self.konditionen = konditionen
+        self.art = art
+        self.title = title
+        self.funktionärID = funktionärID
+        self.kontaktInitiator = kontaktInitiator
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, clientID, sponsorID, status, startDatum, schritte, erinnerungen, hinweise
+        case mitarbeiterID, priority, konditionen, art, title, funktionärID, kontaktInitiator
+    }
+
+    static func == (lhs: SponsoringProcess, rhs: SponsoringProcess) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.clientID == rhs.clientID &&
+               lhs.sponsorID == rhs.sponsorID &&
+               lhs.status == rhs.status &&
+               lhs.startDatum == rhs.startDatum &&
+               lhs.schritte == rhs.schritte &&
+               lhs.erinnerungen == rhs.erinnerungen &&
+               lhs.hinweise == rhs.hinweise &&
+               lhs.mitarbeiterID == rhs.mitarbeiterID &&
+               lhs.priority == rhs.priority &&
+               lhs.konditionen == rhs.konditionen &&
+               lhs.art == rhs.art &&
+               lhs.title == rhs.title &&
+               lhs.funktionärID == rhs.funktionärID &&
+               lhs.kontaktInitiator == rhs.kontaktInitiator
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(clientID)
+        hasher.combine(sponsorID)
+        hasher.combine(status)
+        hasher.combine(startDatum)
+        hasher.combine(schritte)
+        hasher.combine(erinnerungen)
+        hasher.combine(hinweise)
+        hasher.combine(mitarbeiterID)
+        hasher.combine(priority)
+        hasher.combine(konditionen)
+        hasher.combine(art)
+        hasher.combine(title)
+        hasher.combine(funktionärID)
+        hasher.combine(kontaktInitiator)
+    }
+}
+
+struct ProfileRequest: Identifiable, Codable, Hashable, Equatable {
+    @DocumentID var id: String?
+    var vereinID: String
+    var funktionärID: String?
+    var abteilung: String // "Frauen", "Männer"
+    var gesuchtePositionen: [PositionCriteria] // Liste mit Kriterien
+    var status: String // z. B. "offen", "in Bearbeitung", "abgeschlossen"
+    var datum: Date
+    var kontaktInitiator: String? // "Verein", "Wir"
+
+    struct PositionCriteria: Codable, Hashable {
+        var position: String // z. B. "Innenverteidigerin"
+        var alterMin: Int? // Mindestalter
+        var alterMax: Int? // Höchstalter
+        var groesseMin: Int? // Mindestgröße in cm
+        var tempoMin: Int? // Mindesttempo (0-100)
+        var weitereKriterien: String? // z. B. "technisch stark"
+    }
+
+    init(
+        id: String? = nil,
+        vereinID: String,
+        funktionärID: String? = nil,
+        abteilung: String,
+        gesuchtePositionen: [PositionCriteria],
+        status: String = "offen",
+        datum: Date = Date(),
+        kontaktInitiator: String? = nil
+    ) {
+        self.id = id
+        self.vereinID = vereinID
+        self.funktionärID = funktionärID
+        self.abteilung = abteilung
+        self.gesuchtePositionen = gesuchtePositionen
+        self.status = status
+        self.datum = datum
+        self.kontaktInitiator = kontaktInitiator
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, vereinID, funktionärID, abteilung, gesuchtePositionen, status, datum, kontaktInitiator
+    }
+
+    static func == (lhs: ProfileRequest, rhs: ProfileRequest) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.vereinID == rhs.vereinID &&
+               lhs.funktionärID == rhs.funktionärID &&
+               lhs.abteilung == rhs.abteilung &&
+               lhs.gesuchtePositionen == rhs.gesuchtePositionen &&
+               lhs.status == rhs.status &&
+               lhs.datum == rhs.datum &&
+               lhs.kontaktInitiator == rhs.kontaktInitiator
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(vereinID)
+        hasher.combine(funktionärID)
+        hasher.combine(abteilung)
+        hasher.combine(gesuchtePositionen)
+        hasher.combine(status)
+        hasher.combine(datum)
+        hasher.combine(kontaktInitiator)
+    }
+}
+
+struct Reminder: Identifiable, Codable, Equatable, Hashable {
+    var id: String = UUID().uuidString
+    var datum: Date
+    var beschreibung: String
+    var kategorie: String? // z. B. "nachfrageErinnerung"
+
+    static func == (lhs: Reminder, rhs: Reminder) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.datum == rhs.datum &&
+               lhs.beschreibung == rhs.beschreibung &&
+               lhs.kategorie == rhs.kategorie
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(datum)
+        hasher.combine(beschreibung)
+        hasher.combine(kategorie)
+    }
+}
+
+struct Note: Identifiable, Codable, Equatable, Hashable {
+    var id: String = UUID().uuidString
+    var beschreibung: String
+    var vereinsDokumente: [String]? // URLs zu Vereinsdokumenten
+
+    static func == (lhs: Note, rhs: Note) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.beschreibung == rhs.beschreibung &&
+               lhs.vereinsDokumente == rhs.vereinsDokumente
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(beschreibung)
+        hasher.combine(vereinsDokumente)
+    }
+}
+
+struct TransferDetails: Identifiable, Codable, Equatable, Hashable {
     var id: String? = UUID().uuidString
     var vonVereinID: String?
     var zuVereinID: String?
@@ -410,32 +906,28 @@ struct TransferDetails: Identifiable, Codable {
     var ablösesumme: Double?
     var isAblösefrei: Bool
     var transferdetails: String?
-}
 
-struct Step: Identifiable, Codable {
-    var id: String = UUID().uuidString
-    var typ: String // z. B. "Kontaktaufnahme", "Verhandlung", "zweitKontakt", "klientInfo", "vertragVerhandeln"
-    var status: String // z. B. "geplant", "abgeschlossen"
-    var datum: Date
-    var notizen: String?
-    var erfolgschance: Int? // Erfolgschancen (0-100)
-    var checkliste: [String]? // Neu: z. B. ["CV bereit", "Video hochgeladen"]
-    var funktionär: String?
-}
+    static func == (lhs: TransferDetails, rhs: TransferDetails) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.vonVereinID == rhs.vonVereinID &&
+               lhs.zuVereinID == rhs.zuVereinID &&
+               lhs.funktionärID == rhs.funktionärID &&
+               lhs.datum == rhs.datum &&
+               lhs.ablösesumme == rhs.ablösesumme &&
+               lhs.isAblösefrei == rhs.isAblösefrei &&
+               lhs.transferdetails == rhs.transferdetails
+    }
 
-struct Reminder: Identifiable, Codable {
-    var id: String = UUID().uuidString
-    var datum: Date
-    var beschreibung: String
-    // Neues Feld aus Feedback
-    var kategorie: String? // z. B. "nachfrageErinnerung"
-}
-
-struct Note: Identifiable, Codable {
-    var id: String = UUID().uuidString
-    var beschreibung: String
-    // Neues Feld aus Feedback
-    var vereinsDokumente: [String]? // URLs zu Vereinsdokumenten
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(vonVereinID)
+        hasher.combine(zuVereinID)
+        hasher.combine(funktionärID)
+        hasher.combine(datum)
+        hasher.combine(ablösesumme)
+        hasher.combine(isAblösefrei)
+        hasher.combine(transferdetails)
+    }
 }
 
 struct Club: Identifiable, Codable, Hashable {
@@ -585,23 +1077,41 @@ struct Message: Identifiable, Codable, Equatable {
     }
 }
 
-struct Chat: Identifiable, Codable, Equatable, Hashable {
+struct Chat: Codable, Identifiable {
     @DocumentID var id: String?
     var participantIDs: [String]
     var lastMessage: String?
     var lastMessageTimestamp: Date?
     var isArchived: Bool?
 
-    static func == (lhs: Chat, rhs: Chat) -> Bool {
-        return lhs.id == rhs.id &&
-               lhs.participantIDs == rhs.participantIDs &&
-               lhs.lastMessage == rhs.lastMessage &&
-               lhs.lastMessageTimestamp == rhs.lastMessageTimestamp &&
-               lhs.isArchived == rhs.isArchived
+    enum CodingKeys: String, CodingKey {
+        case id
+        case participantIDs
+        case lastMessage
+        case lastMessageTimestamp
+        case isArchived
     }
+}
 
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
+struct ChatMessage: Codable, Identifiable {
+    var id: String?
+    var senderID: String
+    var senderEmail: String
+    var content: String?
+    var fileURL: String?
+    var fileType: String?
+    var timestamp: Date
+    var readBy: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case senderID
+        case senderEmail
+        case content
+        case fileURL
+        case fileType
+        case timestamp
+        case readBy
     }
 }
 
@@ -614,13 +1124,49 @@ struct PlayerData: Codable {
     var contractEnd: Date?
 }
 
-struct ChatMessage: Codable, Identifiable {
-    @DocumentID var id: String? = UUID().uuidString
-    let senderID: String
-    let senderEmail: String
-    let content: String?
-    let fileURL: String?
-    let fileType: String?
-    let timestamp: Date
-    var readBy: [String]
+struct Matching: Identifiable, Codable {
+    var id: String = UUID().uuidString
+    var clientID: String
+    var vereinID: String
+    var matchScore: Double // Übereinstimmungsrate (0-100)
+    var status: String // "pending", "accepted", "rejected"
+    var createdAt: Date
+}
+
+struct MatchFeedback: Identifiable, Codable {
+    var id: String = UUID().uuidString
+    var matchID: String
+    var userID: String // Mitarbeiter, der das Feedback gibt
+    var status: String // "accepted" oder "rejected"
+    var reason: String? // Grund für Ablehnung
+    var timestamp: Date
+}
+
+struct User: Identifiable, Codable {
+    @DocumentID var id: String?
+    var email: String
+    var rolle: String
+    var points: Int? // Neue Eigenschaft
+    var badges: [String]? // Neue Eigenschaft (z. B. ["first_email", "transfer_master"])
+    var challenges: [Challenge]? // Neue Eigenschaft
+}
+
+struct Challenge: Identifiable, Codable {
+    var id: String = UUID().uuidString
+    var title: String // z. B. "Versende 3 E-Mails an Vereine"
+    var description: String
+    var points: Int // Belohnung
+    var progress: Int // Fortschritt (z. B. 2/3 E-Mails versendet)
+    var goal: Int // Ziel (z. B. 3 E-Mails)
+    var type: String // z. B. "send_emails", "acquire_client"
+    var completed: Bool
+}
+
+struct Notification: Identifiable, Codable {
+    var id: String
+    var userID: String
+    var title: String
+    var message: String
+    var timestamp: Date
+    var isRead: Bool
 }

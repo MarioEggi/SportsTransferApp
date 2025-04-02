@@ -23,59 +23,131 @@ struct ContactsView: View {
     @State private var clientListener: ListenerRegistration?
     @State private var funktionärListener: ListenerRegistration?
 
+    // Farben für das dunkle Design
+    private let backgroundColor = Color(hex: "#1C2526")
+    private let cardBackgroundColor = Color(hex: "#2A3439")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#E0E0E0")
+    private let secondaryTextColor = Color(hex: "#B0BEC5")
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                filterPicker
-                groupByPicker
-                contactsList
-            }
-            .navigationTitle("Kontakte")
-            .foregroundColor(.white) // Weiße Schrift für den Titel
-            .toolbar { toolbarContent }
-            .sheet(isPresented: $showingAddClientSheet) {
-                AddClientView()
-                    .environmentObject(authManager)
-            }
-            .sheet(isPresented: $showingAddFunktionärSheet) {
-                AddFunktionärView(
-                    funktionär: $newFunktionär,
-                    onSave: { updatedFunktionär in
-                        Task {
-                            do {
-                                try await FirestoreManager.shared.createFunktionär(funktionär: updatedFunktionär)
-                                await MainActor.run {
-                                    resetNewFunktionär()
-                                    showingAddFunktionärSheet = false
-                                }
-                            } catch {
-                                errorMessage = "Fehler beim Speichern des Funktionärs: \(error.localizedDescription)"
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Kontakte")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(textColor)
+                        Spacer()
+                        HStack(spacing: 15) {
+                            Button(action: { showingAddClientSheet = true }) {
+                                Image(systemName: "person.badge.plus")
+                                    .foregroundColor(accentColor)
+                            }
+                            Button(action: { showingAddFunktionärSheet = true }) {
+                                Image(systemName: "person.2.badge.gearshape")
+                                    .foregroundColor(accentColor)
                             }
                         }
-                    },
-                    onCancel: {
-                        resetNewFunktionär()
-                        showingAddFunktionärSheet = false
                     }
-                )
-            }
-            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-                Alert(
-                    title: Text("Fehler").foregroundColor(.white),
-                    message: Text(errorMessage).foregroundColor(.white),
-                    dismissButton: .default(Text("OK").foregroundColor(.white)) {
-                        errorMessage = ""
+                    .padding(.horizontal)
+                    .padding(.top, 10)
+
+                    filterPicker
+                    groupByPicker
+
+                    List {
+                        if groupedContacts.isEmpty && filteredContacts.isEmpty {
+                            Text("Keine Kontakte vorhanden.")
+                                .foregroundColor(secondaryTextColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .listRowBackground(backgroundColor)
+                        } else if groupBy == .none {
+                            ForEach(filteredContacts) { contact in
+                                contactRow(for: contact)
+                                    .listRowBackground(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(cardBackgroundColor)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                            )
+                                            .padding(.vertical, 2)
+                                    )
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                            }
+                        } else {
+                            ForEach(groupedContacts.keys.sorted(), id: \.self) { key in
+                                Section(header: Text(key).font(.headline).foregroundColor(textColor)) {
+                                    ForEach(groupedContacts[key] ?? []) { contact in
+                                        contactRow(for: contact)
+                                            .listRowBackground(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(cardBackgroundColor)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 10)
+                                                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                                    )
+                                                    .padding(.vertical, 2)
+                                            )
+                                            .listRowSeparator(.hidden)
+                                            .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                                    }
+                                }
+                            }
+                        }
                     }
-                )
+                    .listStyle(PlainListStyle())
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundColor)
+                    .padding(.horizontal)
+                }
+                .sheet(isPresented: $showingAddClientSheet) {
+                    AddClientView()
+                        .environmentObject(authManager)
+                }
+                .sheet(isPresented: $showingAddFunktionärSheet) {
+                    AddFunktionärView(
+                        funktionär: $newFunktionär,
+                        onSave: { updatedFunktionär in
+                            Task {
+                                do {
+                                    try await FirestoreManager.shared.createFunktionär(funktionär: updatedFunktionär)
+                                    await MainActor.run {
+                                        resetNewFunktionär()
+                                        showingAddFunktionärSheet = false
+                                    }
+                                } catch {
+                                    errorMessage = "Fehler beim Speichern des Funktionärs: \(error.localizedDescription)"
+                                }
+                            }
+                        },
+                        onCancel: {
+                            resetNewFunktionär()
+                            showingAddFunktionärSheet = false
+                        }
+                    )
+                }
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) {
+                            errorMessage = ""
+                        }
+                    )
+                }
+                .task {
+                    await setupRealtimeListeners()
+                }
+                .onDisappear {
+                    clientListener?.remove()
+                    funktionärListener?.remove()
+                }
             }
-            .task {
-                await setupRealtimeListeners()
-            }
-            .onDisappear {
-                clientListener?.remove()
-                funktionärListener?.remove()
-            }
-            .background(Color.black) // Schwarzer Hintergrund für die gesamte View
         }
     }
 
@@ -86,9 +158,8 @@ struct ContactsView: View {
             }
         }
         .pickerStyle(SegmentedPickerStyle())
-        .foregroundColor(.white) // Weiße Schrift
-        .padding()
-        .background(Color.black) // Schwarzer Hintergrund
+        .foregroundColor(textColor)
+        .padding(.horizontal)
     }
 
     private var groupByPicker: some View {
@@ -98,49 +169,149 @@ struct ContactsView: View {
             }
         }
         .pickerStyle(SegmentedPickerStyle())
-        .foregroundColor(.white) // Weiße Schrift
-        .padding()
-        .background(Color.black) // Schwarzer Hintergrund
+        .foregroundColor(textColor)
+        .padding(.horizontal)
+        .padding(.bottom, 10)
     }
 
-    private var contactsList: some View {
-        Group {
-            if groupedContacts.isEmpty {
-                Text("Keine Kontakte vorhanden.")
-                    .foregroundColor(.gray)
-                    .padding()
-            } else {
-                List {
-                    if groupBy == .none {
-                        ForEach(filteredContacts) { contact in
-                            contactRow(for: contact)
-                        }
-                    } else {
-                        ForEach(groupedContacts.keys.sorted(), id: \.self) { key in
-                            Section(header: Text(key).font(.headline).foregroundColor(.white)) {
-                                ForEach(groupedContacts[key] ?? []) { contact in
-                                    contactRow(for: contact)
+    private func contactRow(for contact: Contact) -> some View {
+        Group {  // Verwende Group, um die Typen zu vereinheitlichen
+            switch contact {
+            case .client(let client):
+                NavigationLink(destination: ClientView(client: .constant(client))) {
+                    HStack(spacing: 10) {
+                        if let profilbildURL = client.profilbildURL, let url = URL(string: profilbildURL) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(width: 40, height: 40)
+                                        .tint(accentColor)
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                                case .failure:
+                                    Image(systemName: "person.circle.fill")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .foregroundColor(secondaryTextColor)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                                @unknown default:
+                                    Image(systemName: "person.circle.fill")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .foregroundColor(secondaryTextColor)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
                                 }
                             }
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40, height: 40)
+                                .foregroundColor(secondaryTextColor)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
                         }
-                    }
-                }
-                .scrollContentBackground(.hidden) // Standard-Hintergrund der Liste ausblenden
-                .background(Color.black) // Schwarzer Hintergrund für die Liste
-            }
-        }
-    }
 
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarTrailing) {
-            HStack {
-                Button(action: { showingAddClientSheet = true }) {
-                    Image(systemName: "person.badge.plus")
-                        .foregroundColor(.white) // Weißes Symbol
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(client.vorname) \(client.name)")
+                                .font(.headline)
+                                .foregroundColor(textColor)
+                            if let vereinID = client.vereinID {
+                                Text(vereinID)
+                                    .font(.caption)
+                                    .foregroundColor(secondaryTextColor)
+                            }
+                            if let abteilung = client.abteilung {
+                                Text(abteilung)
+                                    .font(.caption)
+                                    .foregroundColor(secondaryTextColor)
+                            }
+                        }
+                        Spacer()
+                        Text(client.typ == "Spieler" ? "♂" : "♀")
+                            .font(.system(size: 14))
+                            .foregroundColor(client.typ == "Spieler" ? .blue : .pink)
+                    }
+                    .padding(.vertical, 8)
                 }
-                Button(action: { showingAddFunktionärSheet = true }) {
-                    Image(systemName: "person.2.badge.gearshape")
-                        .foregroundColor(.white) // Weißes Symbol
+            case .funktionär(let funktionär):
+                NavigationLink(destination: FunktionärView(funktionär: .constant(funktionär))) {
+                    HStack(spacing: 10) {
+                        if let profilbildURL = funktionär.profilbildURL, let url = URL(string: profilbildURL) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(width: 40, height: 40)
+                                        .tint(accentColor)
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                                case .failure:
+                                    Image(systemName: "person.circle.fill")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .foregroundColor(secondaryTextColor)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                                @unknown default:
+                                    Image(systemName: "person.circle.fill")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .foregroundColor(secondaryTextColor)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                                }
+                            }
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40, height: 40)
+                                .foregroundColor(secondaryTextColor)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(funktionär.vorname) \(funktionär.name)")
+                                .font(.headline)
+                                .foregroundColor(textColor)
+                            if let position = funktionär.positionImVerein {
+                                Text(position)
+                                    .font(.caption)
+                                    .foregroundColor(secondaryTextColor)
+                            }
+                            if let vereinID = funktionär.vereinID {
+                                Text(vereinID)
+                                    .font(.caption)
+                                    .foregroundColor(secondaryTextColor)
+                            }
+                            if let abteilung = funktionär.abteilung {
+                                Text(abteilung)
+                                    .font(.caption)
+                                    .foregroundColor(secondaryTextColor)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
                 }
             }
         }
@@ -188,151 +359,6 @@ struct ContactsView: View {
             }
         }
         return grouped
-    }
-
-    @ViewBuilder
-    private func contactRow(for contact: Contact) -> some View {
-        switch contact {
-        case .client(let client):
-            NavigationLink(destination: ClientView(client: .constant(client))) {
-                HStack(spacing: 10) {
-                    if let profilbildURL = client.profilbildURL, let url = URL(string: profilbildURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .empty:
-                                ProgressView()
-                                    .frame(width: 40, height: 40)
-                                    .tint(.white) // Weißer Ladeindikator
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                            case .failure:
-                                Image(systemName: "person.circle.fill")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.gray)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                            @unknown default:
-                                Image(systemName: "person.circle.fill")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.gray)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                            }
-                        }
-                    } else {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(.gray)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(client.vorname) \(client.name)")
-                            .font(.headline)
-                            .foregroundColor(.white) // Weiße Schrift
-                        if let vereinID = client.vereinID {
-                            Text(vereinID)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        if let abteilung = client.abteilung {
-                            Text(abteilung)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text(client.typ == "Spieler" ? "♂" : "♀")
-                        .font(.system(size: 14))
-                        .foregroundColor(client.typ == "Spieler" ? .blue : .pink)
-                }
-                .padding(.vertical, 5)
-            }
-            .listRowBackground(Color.gray.opacity(0.2)) // Dunklerer Hintergrund für Listenelemente
-        case .funktionär(let funktionär):
-            NavigationLink(destination: FunktionärView(funktionär: .constant(funktionär))) {
-                HStack(spacing: 10) {
-                    if let profilbildURL = funktionär.profilbildURL, let url = URL(string: profilbildURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .empty:
-                                ProgressView()
-                                    .frame(width: 40, height: 40)
-                                    .tint(.white) // Weißer Ladeindikator
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                            case .failure:
-                                Image(systemName: "person.circle.fill")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.gray)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                            @unknown default:
-                                Image(systemName: "person.circle.fill")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.gray)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                            }
-                        }
-                    } else {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(.gray)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.gray, lineWidth: 1))
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(funktionär.vorname) \(funktionär.name)")
-                            .font(.headline)
-                            .foregroundColor(.white) // Weiße Schrift
-                        if let position = funktionär.positionImVerein {
-                            Text(position)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        if let vereinID = funktionär.vereinID {
-                            Text(vereinID)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        if let abteilung = funktionär.abteilung {
-                            Text(abteilung)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.vertical, 5)
-            }
-            .listRowBackground(Color.gray.opacity(0.2)) // Dunklerer Hintergrund für Listenelemente
-        }
     }
 
     private func resetNewClient() {

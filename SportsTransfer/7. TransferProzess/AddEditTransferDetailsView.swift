@@ -14,157 +14,104 @@ struct AddEditTransferDetailsView: View {
     @State private var isAblösefrei = false
     @State private var transferdetails = ""
 
-    // Farben für das dunkle Design
-    private let backgroundColor = Color(hex: "#1C2526")
-    private let cardBackgroundColor = Color(hex: "#2A3439")
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
     private let accentColor = Color(hex: "#00C4B4")
-    private let textColor = Color(hex: "#E0E0E0")
-    private let secondaryTextColor = Color(hex: "#B0BEC5")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack {
                 backgroundColor.edgesIgnoringSafeArea(.all)
-
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Titel
-                        Text("Transferdetails bearbeiten")
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(textColor)
-                            .padding(.top, 16)
-
-                        // Transferdetails
-                        VStack(alignment: .leading, spacing: 12) {
-                            // Von Verein ID
+                List {
+                    Section(header: Text("Transferdetails").foregroundColor(textColor)) {
+                        VStack(spacing: 10) {
                             TextField("Von Verein ID", text: $vonVereinID)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Zu Verein ID
-                            TextField("Zu Verein ID", text: $zuVereinID)
-                                .padding()
-                                .background(cardBackgroundColor)
-                                .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Funktionär ID
-                            TextField("Funktionär ID", text: $funktionärID)
-                                .padding()
-                                .background(cardBackgroundColor)
-                                .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Datum
-                            DatePicker("Datum", selection: $datum, displayedComponents: [.date])
-                                .foregroundColor(textColor)
-                                .accentColor(accentColor)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
-                                .background(cardBackgroundColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            // Ablösesumme
+                            TextField("Zu Verein ID", text: $zuVereinID)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                            TextField("Funktionär ID", text: $funktionärID)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                            DatePicker("Datum", selection: $datum, displayedComponents: [.date])
+                                .foregroundColor(textColor)
+                                .tint(accentColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                             TextField("Ablösesumme", text: $ablösesumme)
                                 .keyboardType(.decimalPad)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Ablösefrei
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                             Toggle("Ablösefrei", isOn: $isAblösefrei)
                                 .foregroundColor(textColor)
                                 .tint(accentColor)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
-                                .background(cardBackgroundColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            // Details
                             TextField("Details", text: $transferdetails)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                         }
-                        .padding()
-                        .background(cardBackgroundColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                        )
-                        .padding(.horizontal)
-
-                        Spacer(minLength: 80) // Platz für die untere Leiste
+                        .padding(.vertical, 8)
                     }
-                    .padding(.bottom, 16)
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
                 }
-            }
-            .ignoresSafeArea(edges: .bottom)
-            .navigationTitle("Transferdetails bearbeiten")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Text("Abbrechen")
+                .listStyle(PlainListStyle())
+                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .tint(accentColor)
+                .foregroundColor(textColor)
+                .navigationTitle("Transferdetails bearbeiten")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { dismiss() }
                             .foregroundColor(accentColor)
-                            .font(.system(size: 16, weight: .medium))
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Speichern") {
+                            let updatedDetails = TransferDetails(
+                                id: transferDetails?.id ?? UUID().uuidString,
+                                vonVereinID: vonVereinID.isEmpty ? nil : vonVereinID,
+                                zuVereinID: zuVereinID.isEmpty ? nil : zuVereinID,
+                                funktionärID: funktionärID.isEmpty ? nil : funktionärID,
+                                datum: datum,
+                                ablösesumme: Double(ablösesumme),
+                                isAblösefrei: isAblösefrei,
+                                transferdetails: transferdetails.isEmpty ? nil : transferdetails
+                            )
+                            onSave(updatedDetails)
+                            dismiss()
+                        }
+                        .foregroundColor(accentColor)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        let updatedDetails = TransferDetails(
-                            id: transferDetails?.id ?? UUID().uuidString,
-                            vonVereinID: vonVereinID.isEmpty ? nil : vonVereinID,
-                            zuVereinID: zuVereinID.isEmpty ? nil : zuVereinID,
-                            funktionärID: funktionärID.isEmpty ? nil : funktionärID,
-                            datum: datum,
-                            ablösesumme: Double(ablösesumme),
-                            isAblösefrei: isAblösefrei,
-                            transferdetails: transferdetails.isEmpty ? nil : transferdetails
-                        )
-                        onSave(updatedDetails)
-                        dismiss()
-                    }) {
-                        Text("Speichern")
-                            .foregroundColor(accentColor)
-                            .font(.system(size: 16, weight: .medium))
+                .onAppear {
+                    if let details = transferDetails {
+                        vonVereinID = details.vonVereinID ?? ""
+                        zuVereinID = details.zuVereinID ?? ""
+                        funktionärID = details.funktionärID ?? ""
+                        datum = details.datum
+                        ablösesumme = details.ablösesumme?.description ?? ""
+                        isAblösefrei = details.isAblösefrei
+                        transferdetails = details.transferdetails ?? ""
                     }
-                }
-            }
-            .onAppear {
-                if let details = transferDetails {
-                    vonVereinID = details.vonVereinID ?? ""
-                    zuVereinID = details.zuVereinID ?? ""
-                    funktionärID = details.funktionärID ?? ""
-                    datum = details.datum
-                    ablösesumme = details.ablösesumme?.description ?? ""
-                    isAblösefrei = details.isAblösefrei
-                    transferdetails = details.transferdetails ?? ""
                 }
             }
         }

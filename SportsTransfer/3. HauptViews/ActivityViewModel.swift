@@ -1,3 +1,6 @@
+//
+//  ActivityViewModel.swift
+
 import Foundation
 import FirebaseFirestore
 

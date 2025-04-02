@@ -23,6 +23,13 @@ struct ClientView: View {
     @State private var clubName: String? = nil
     @State private var clubLogoURL: String? = nil
 
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5") // Sehr helles Grau
+    private let cardBackgroundColor = Color(hex: "#E0E0E0") // Leicht dunkleres Grau für Karten
+    private let accentColor = Color(hex: "#00C4B4") // Akzentfarbe bleibt gleich
+    private let textColor = Color(hex: "#333333") // Dunkle Textfarbe
+    private let secondaryTextColor = Color(hex: "#666666") // Mittleres Grau für sekundären Text
+
     var previousClientAction: (() -> Void)?
     var nextClientAction: (() -> Void)?
 
@@ -38,36 +45,53 @@ struct ClientView: View {
     }()
 
     private var detailsTab: some View {
-        Form {
-            Section(header: Text("Spieldaten").foregroundColor(.white)) {
-                labeledField(label: "Positionen", value: client.positionFeld?.joined(separator: ", "))
-                labeledField(label: "Nationalmannschaft", value: client.nationalmannschaft)
-                labeledField(label: "Größe", value: client.groesse.map { "\($0) cm" })
-                labeledField(label: "Starker Fuß", value: client.starkerFuss)
+        List {
+            Section(header: Text("Spieldaten").foregroundColor(textColor)) {
+                VStack(spacing: 10) {
+                    labeledField(label: "Positionen", value: client.positionFeld?.joined(separator: ", "))
+                    labeledField(label: "Nationalmannschaft", value: client.nationalmannschaft)
+                    labeledField(label: "Größe", value: client.groesse.map { "\($0) cm" })
+                    labeledField(label: "Starker Fuß", value: client.starkerFuss)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
             }
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(cardBackgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                    )
+                    .padding(.vertical, 2)
+            )
+            .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
         }
+        .listStyle(PlainListStyle())
+        .listRowSeparator(.hidden)
         .scrollContentBackground(.hidden)
-        .background(Color.black)
+        .background(backgroundColor)
+        .foregroundColor(textColor)
     }
 
     private var contractTab: some View {
         VStack(spacing: 20) {
             Section(header: Text("Vertragsübersicht")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
                 .padding(.top)) {
                 if isLoadingContracts {
                     ProgressView("Lade Verträge...")
-                        .tint(.white)
+                        .tint(accentColor)
                 } else if let contract = contractViewModel.contracts.first(where: { $0.clientID == client.id }) {
                     NavigationLink(destination: ContractDetailView(contract: contract)) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Verein: \(contract.vereinID ?? "Kein Verein")")
                                 .font(.subheadline)
-                                .foregroundColor(.white)
+                                .foregroundColor(textColor)
                             Text("Start: \(dateFormatter.string(from: contract.startDatum))")
                                 .font(.subheadline)
-                                .foregroundColor(.white)
+                                .foregroundColor(textColor)
                             if let endDatum = contract.endDatum {
                                 Text("Ende: \(dateFormatter.string(from: endDatum))")
                                     .font(.caption)
@@ -76,99 +100,119 @@ struct ClientView: View {
                             if let gehalt = contract.gehalt {
                                 Text("Gehalt: \(gehalt) €")
                                     .font(.subheadline)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(textColor)
                             }
                             labeledField(label: "Vertragsoptionen", value: contract.vertragsdetails)
                         }
                         .padding()
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(10)
                     }
                 } else {
                     Text("Kein Vertrag vorhanden.")
-                        .foregroundColor(.gray)
+                        .foregroundColor(secondaryTextColor)
                 }
             }
         }
         .padding()
-        .background(Color.black)
+        .background(backgroundColor)
     }
 
     private var contactTab: some View {
-        Form {
-            Section(header: Text("Kontaktdaten").foregroundColor(.white)) {
-                if let phone = client.kontaktTelefon {
-                    HStack {
-                        labeledField(label: "Telefon", value: phone)
-                        Spacer()
-                        Button(action: { openURL("tel:\(phone)") }) {
-                            Image(systemName: "phone.fill")
-                                .foregroundColor(.white)
+        List {
+            Section(header: Text("Kontaktdaten").foregroundColor(textColor)) {
+                VStack(spacing: 10) {
+                    if let phone = client.kontaktTelefon {
+                        HStack {
+                            labeledField(label: "Telefon", value: phone)
+                            Spacer()
+                            Button(action: { openURL("tel:\(phone)") }) {
+                                Image(systemName: "phone.fill")
+                                    .foregroundColor(accentColor)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                            }
                         }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
                     }
-                }
-                if let email = client.kontaktEmail {
-                    HStack {
-                        labeledField(label: "E-Mail", value: email)
-                        Spacer()
-                        Button(action: { openURL("mailto:\(email)") }) {
-                            Image(systemName: "envelope.fill")
-                                .foregroundColor(.white)
+                    if let email = client.kontaktEmail {
+                        HStack {
+                            labeledField(label: "E-Mail", value: email)
+                            Spacer()
+                            Button(action: { openURL("mailto:\(email)") }) {
+                                Image(systemName: "envelope.fill")
+                                    .foregroundColor(accentColor)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                            }
                         }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
                     }
+                    labeledField(label: "Adresse", value: client.adresse)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
                 }
-                labeledField(label: "Adresse", value: client.adresse)
+                .padding(.vertical, 8)
             }
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(cardBackgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                    )
+                    .padding(.vertical, 2)
+            )
+            .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
         }
+        .listStyle(PlainListStyle())
+        .listRowSeparator(.hidden)
         .scrollContentBackground(.hidden)
-        .background(Color.black)
+        .background(backgroundColor)
+        .foregroundColor(textColor)
     }
 
     private var activitiesTab: some View {
         VStack(spacing: 20) {
             Section(header: Text("Aktivitäten")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
                 .padding(.top)) {
                 if activities.isEmpty {
                     Text("Keine Aktivitäten vorhanden.")
-                        .foregroundColor(.gray)
+                        .foregroundColor(secondaryTextColor)
                 } else {
                     ForEach(activities) { activity in
                         NavigationLink(destination: ActivityDetailView(activity: activity)) {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(activity.description)
                                     .font(.subheadline)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(textColor)
                                     .lineLimit(1)
                                 Text(dateFormatter.string(from: activity.timestamp))
                                     .font(.caption)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(secondaryTextColor)
                             }
                             .padding()
-                            .background(Color.gray.opacity(0.2))
-                            .cornerRadius(10)
                         }
                     }
                 }
             }
         }
         .padding()
-        .background(Color.black)
+        .background(backgroundColor)
     }
 
     private func labeledField(label: String, value: String?) -> some View {
         HStack {
             Text(label)
                 .font(.subheadline)
-                .foregroundColor(.gray)
+                .foregroundColor(secondaryTextColor)
             Spacer()
             Text(value ?? "Nicht angegeben")
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(value != nil ? Color.gray.opacity(0.2) : Color.clear)
-                .cornerRadius(4)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
         }
     }
 
@@ -208,23 +252,23 @@ struct ClientView: View {
                                         .scaledToFit()
                                         .frame(width: 100, height: 100)
                                         .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
                                 case .failure, .empty:
                                     Image(systemName: "person.circle.fill")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 100, height: 100)
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(secondaryTextColor)
                                         .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
                                 @unknown default:
                                     Image(systemName: "person.circle.fill")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 100, height: 100)
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(secondaryTextColor)
                                         .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                                        .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
                                 }
                             }
                         } else {
@@ -232,15 +276,15 @@ struct ClientView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 100, height: 100)
-                                .foregroundColor(.gray)
+                                .foregroundColor(secondaryTextColor)
                                 .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.gray, lineWidth: 1))
+                                .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
                         }
 
                         Button(action: { showingImagePicker = true }) {
                             Image(systemName: "arrow.up.circle")
                                 .font(.system(size: 24))
-                                .foregroundColor(.white)
+                                .foregroundColor(accentColor)
                                 .opacity(0.6)
                         }
                         .sheet(isPresented: $showingImagePicker) {
@@ -267,7 +311,7 @@ struct ClientView: View {
                             .font(.title2)
                             .bold()
                             .multilineTextAlignment(.center)
-                            .foregroundColor(.white)
+                            .foregroundColor(textColor)
 
                         HStack(spacing: 10) {
                             if let logoURL = clubLogoURL, let url = URL(string: logoURL) {
@@ -284,14 +328,14 @@ struct ClientView: View {
                                             .resizable()
                                             .scaledToFit()
                                             .frame(width: 20, height: 20)
-                                            .foregroundColor(.gray)
+                                            .foregroundColor(secondaryTextColor)
                                             .clipShape(Circle())
                                     @unknown default:
                                         Image(systemName: "building.fill")
                                             .resizable()
                                             .scaledToFit()
                                             .frame(width: 20, height: 20)
-                                            .foregroundColor(.gray)
+                                            .foregroundColor(secondaryTextColor)
                                             .clipShape(Circle())
                                     }
                                 }
@@ -300,29 +344,29 @@ struct ClientView: View {
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 20, height: 20)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(secondaryTextColor)
                                     .clipShape(Circle())
                             }
                             Text(clubName ?? "Kein Verein")
                                 .font(.headline)
-                                .foregroundColor(.white)
+                                .foregroundColor(textColor)
                         }
 
                         if let abteilung = client.abteilung {
                             Text("Abteilung: \(abteilung)")
                                 .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(secondaryTextColor)
                         }
 
                         if let vertragBis = client.vertragBis {
                             Text("Vertragslaufzeit: \(dateFormatter.string(from: vertragBis))")
                                 .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(secondaryTextColor)
                         }
                         if let vertragsOptionen = client.vertragsOptionen {
                             Text("Vertragsoptionen: \(vertragsOptionen)")
                                 .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(secondaryTextColor)
                         }
                     }
                     .padding()
@@ -343,8 +387,8 @@ struct ClientView: View {
                         Text("Aktivitäten").tag(3)
                     }
                     .pickerStyle(SegmentedPickerStyle())
-                    .foregroundColor(.white)
-                    .accentColor(.white)
+                    .foregroundColor(textColor)
+                    .tint(accentColor)
                     .padding()
 
                     if client.userID == nil {
@@ -352,8 +396,8 @@ struct ClientView: View {
                             Text("Klienten-Login erstellen")
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
+                                .background(accentColor)
+                                .foregroundColor(textColor)
                                 .cornerRadius(10)
                         }
                         .padding()
@@ -363,23 +407,23 @@ struct ClientView: View {
                             .padding()
                     }
                 }
-                .background(Color.black)
+                .background(backgroundColor)
                 .navigationTitle("\(client.vorname) \(client.name)")
                 .navigationBarTitleDisplayMode(.inline)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         HStack {
                             if let previous = previousClientAction {
                                 Button(action: previous) {
                                     Image(systemName: "chevron.left")
-                                        .foregroundColor(.white)
+                                        .foregroundColor(accentColor)
                                 }
                             }
                             if let next = nextClientAction {
                                 Button(action: next) {
                                     Image(systemName: "chevron.right")
-                                        .foregroundColor(.white)
+                                        .foregroundColor(accentColor)
                                 }
                             }
                         }
@@ -391,7 +435,7 @@ struct ClientView: View {
                                 .foregroundColor(client.typ == "Spieler" ? .blue : .pink)
                             Button(action: { showingEditSheet = true }) {
                                 Image(systemName: "pencil")
-                                    .foregroundColor(.white)
+                                    .foregroundColor(accentColor)
                             }
                         }
                     }
@@ -439,9 +483,9 @@ struct ClientView: View {
                 }
                 .alert(isPresented: $isShowingError) {
                     Alert(
-                        title: Text("Fehler").foregroundColor(.white),
-                        message: Text(errorMessage).foregroundColor(.white),
-                        dismissButton: .default(Text("OK").foregroundColor(.white)) {
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) {
                             if !errorQueue.isEmpty {
                                 errorMessage = errorQueue.removeFirst()
                                 isShowingError = true
@@ -571,31 +615,61 @@ struct ClientView: View {
         let onSave: () -> Void
         let onCancel: () -> Void
 
+        // Farben für das helle Design
+        private let backgroundColor = Color(hex: "#F5F5F5") // Sehr helles Grau
+        private let cardBackgroundColor = Color(hex: "#E0E0E0") // Leicht dunkleres Grau für Karten
+        private let accentColor = Color(hex: "#00C4B4") // Akzentfarbe bleibt gleich
+        private let textColor = Color(hex: "#333333") // Dunkle Textfarbe
+        private let secondaryTextColor = Color(hex: "#666666") // Mittleres Grau für sekundären Text
+
         var body: some View {
             NavigationView {
-                Form {
-                    Section(header: Text("Klienten-Login erstellen").foregroundColor(.white)) {
-                        TextField("E-Mail", text: $email)
-                            .autocapitalization(.none)
-                            .keyboardType(.emailAddress)
-                            .foregroundColor(.white)
-                        SecureField("Passwort", text: $password)
-                            .autocapitalization(.none)
-                            .foregroundColor(.white)
+                ZStack {
+                    backgroundColor.edgesIgnoringSafeArea(.all)
+                    List {
+                        Section(header: Text("Klienten-Login erstellen").foregroundColor(textColor)) {
+                            VStack(spacing: 10) {
+                                TextField("E-Mail", text: $email)
+                                    .autocapitalization(.none)
+                                    .keyboardType(.emailAddress)
+                                    .foregroundColor(textColor)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                SecureField("Passwort", text: $password)
+                                    .autocapitalization(.none)
+                                    .foregroundColor(textColor)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(cardBackgroundColor)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                )
+                                .padding(.vertical, 2)
+                        )
+                        .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
                     }
-                }
-                .scrollContentBackground(.hidden)
-                .background(Color.black)
-                .navigationTitle("Login erstellen")
-                .foregroundColor(.white)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Abbrechen") { onCancel() }
-                            .foregroundColor(.white)
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Erstellen") { onSave() }
-                            .foregroundColor(.white)
+                    .listStyle(PlainListStyle())
+                    .listRowSeparator(.hidden)
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundColor)
+                    .tint(accentColor)
+                    .foregroundColor(textColor)
+                    .navigationTitle("Login erstellen")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Abbrechen") { onCancel() }
+                                .foregroundColor(accentColor)
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Erstellen") { onSave() }
+                                .foregroundColor(accentColor)
+                        }
                     }
                 }
             }

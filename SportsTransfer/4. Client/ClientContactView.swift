@@ -15,6 +15,13 @@ struct ClientContactView: View {
     @State private var isShowingError = false
     @Environment(\.dismiss) var dismiss
 
+    // Farben für das dunkle Design
+    private let backgroundColor = Color(hex: "#1C2526")
+    private let cardBackgroundColor = Color(hex: "#2A3439")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#E0E0E0")
+    private let secondaryTextColor = Color(hex: "#B0BEC5")
+
     var filteredClients: [Client] {
         if searchText.isEmpty {
             return clients
@@ -27,31 +34,34 @@ struct ClientContactView: View {
 
     var body: some View {
         NavigationView {
-            Form {
-                clientSelectionSection
-                contactDetailsSection
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.black)
-            .navigationTitle("Klienten Kontakt")
-            .foregroundColor(.white)
-            .toolbar { toolbarContent }
-            .task {
-                await loadClients()
-            }
-            .alert(isPresented: $isShowingError) {
-                Alert(
-                    title: Text("Fehler").foregroundColor(.white),
-                    message: Text(errorMessage).foregroundColor(.white),
-                    dismissButton: .default(Text("OK").foregroundColor(.white)) {
-                        if !errorQueue.isEmpty {
-                            errorMessage = errorQueue.removeFirst()
-                            isShowingError = true
-                        } else {
-                            isShowingError = false
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                Form {
+                    clientSelectionSection
+                    contactDetailsSection
+                }
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .navigationTitle("Klienten Kontakt")
+                .foregroundColor(textColor)
+                .toolbar { toolbarContent }
+                .task {
+                    await loadClients()
+                }
+                .alert(isPresented: $isShowingError) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) {
+                            if !errorQueue.isEmpty {
+                                errorMessage = errorQueue.removeFirst()
+                                isShowingError = true
+                            } else {
+                                isShowingError = false
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -59,9 +69,11 @@ struct ClientContactView: View {
     // Sub-Views
 
     private var clientSelectionSection: some View {
-        Section(header: Text("Klient auswählen").foregroundColor(.white)) {
+        Section(header: Text("Klient auswählen").foregroundColor(textColor)) {
             TextField("Suche nach Name", text: $searchText)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
+                .background(cardBackgroundColor)
+                .cornerRadius(8)
             Picker("Klient", selection: $selectedClient) {
                 Text("Kein Klient ausgewählt").tag(Client?.none)
                 ForEach(filteredClients, id: \.self) { client in
@@ -70,21 +82,21 @@ struct ClientContactView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
-            .foregroundColor(.white)
-            .accentColor(.white)
+            .foregroundColor(textColor)
+            .accentColor(accentColor)
         }
     }
 
     private var contactDetailsSection: some View {
-        Section(header: Text("Kontaktdetails").foregroundColor(.white)) {
+        Section(header: Text("Kontaktdetails").foregroundColor(textColor)) {
             Picker("Art des Kontakts", selection: $contactType) {
                 ForEach(Constants.contactTypes, id: \.self) { type in
                     Text(type).tag(type)
                 }
             }
             .pickerStyle(MenuPickerStyle())
-            .foregroundColor(.white)
-            .accentColor(.white)
+            .foregroundColor(textColor)
+            .accentColor(accentColor)
 
             Picker("Thema", selection: $contactTopic) {
                 ForEach(Constants.contactTopics, id: \.self) { topic in
@@ -92,12 +104,14 @@ struct ClientContactView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
-            .foregroundColor(.white)
-            .accentColor(.white)
+            .foregroundColor(textColor)
+            .accentColor(accentColor)
 
             TextField("Notizen", text: $notes, axis: .vertical)
                 .lineLimit(5)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
+                .background(cardBackgroundColor)
+                .cornerRadius(8)
         }
     }
 
@@ -107,7 +121,7 @@ struct ClientContactView: View {
                 Button("Abbrechen") {
                     isPresented = false
                 }
-                .foregroundColor(.white)
+                .foregroundColor(accentColor)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Speichern") {
@@ -117,7 +131,7 @@ struct ClientContactView: View {
                     }
                 }
                 .disabled(selectedClient == nil)
-                .foregroundColor(.white)
+                .foregroundColor(accentColor)
             }
         }
     }

@@ -17,124 +17,164 @@ struct ClientContractsView: View {
         vertragsdetails: nil
     )
 
+    // Farben für das dunkle Design
+    private let backgroundColor = Color(hex: "#1C2526")
+    private let cardBackgroundColor = Color(hex: "#2A3439")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#E0E0E0")
+    private let secondaryTextColor = Color(hex: "#B0BEC5")
+
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(contracts) { contract in
-                    NavigationLink(destination: ContractDetailView(contract: contract)) {
-                        VStack(alignment: .leading) {
-                            Text("\(client.vorname) \(client.name)")
-                                .font(.headline)
-                                .foregroundColor(.white) // Weiße Schrift
-                            if let vereinID = contract.vereinID {
-                                Text(vereinID)
-                                    .foregroundColor(.white) // Weiße Schrift
-                            }
-                            if let endDatum = contract.endDatum {
-                                Text("Ende: \(dateFormatter.string(from: endDatum))")
-                                    .foregroundColor(.white) // Weiße Schrift
-                            }
-                        }
-                    }
-                    .listRowBackground(Color.gray.opacity(0.2)) // Dunklerer Hintergrund für Listenelemente
-                    .swipeActions {
-                        Button {
-                            isEditing = true
-                            newContract = contract
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Verträge von \(client.vorname) \(client.name)")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(textColor)
+                        Spacer()
+                        Button(action: {
                             showingAddContract = true
-                        } label: {
-                            Label("Bearbeiten", systemImage: "pencil")
-                                .foregroundColor(.white) // Weiße Schrift und Symbol
+                            isEditing = false
+                            newContract = Contract(
+                                id: nil,
+                                clientID: client.id,
+                                vereinID: nil,
+                                startDatum: Date(),
+                                endDatum: nil,
+                                gehalt: nil,
+                                vertragsdetails: nil
+                            )
+                        }) {
+                            Image(systemName: "plus")
+                                .foregroundColor(accentColor)
                         }
-                        Button(role: .destructive) {
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 10)
+
+                    List {
+                        if contracts.isEmpty {
+                            Text("Keine Verträge vorhanden.")
+                                .foregroundColor(secondaryTextColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .listRowBackground(backgroundColor)
+                        } else {
+                            ForEach(contracts) { contract in
+                                NavigationLink(destination: ContractDetailView(contract: contract)) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("\(client.vorname) \(client.name)")
+                                            .font(.headline)
+                                            .foregroundColor(textColor)
+                                        if let vereinID = contract.vereinID {
+                                            Text(vereinID)
+                                                .font(.caption)
+                                                .foregroundColor(secondaryTextColor)
+                                        }
+                                        if let endDatum = contract.endDatum {
+                                            Text("Ende: \(dateFormatter.string(from: endDatum))")
+                                                .font(.caption)
+                                                .foregroundColor(secondaryTextColor)
+                                        }
+                                    }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                }
+                                .swipeActions {
+                                    Button {
+                                        isEditing = true
+                                        newContract = contract
+                                        showingAddContract = true
+                                    } label: {
+                                        Label("Bearbeiten", systemImage: "pencil")
+                                            .foregroundColor(.white)
+                                    }
+                                    .tint(.blue)
+                                    Button(role: .destructive) {
+                                        Task { await deleteContract(contract) }
+                                    } label: {
+                                        Label("Löschen", systemImage: "trash")
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(cardBackgroundColor)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                        )
+                                        .padding(.vertical, 2)
+                                )
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                            }
+                        }
+                    }
+                    .listStyle(PlainListStyle())
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundColor)
+                    .padding(.horizontal)
+                }
+                .sheet(isPresented: $showingAddContract) {
+                    AddContractView(
+                        contract: $newContract,
+                        isEditing: isEditing,
+                        onSave: { contract in
                             Task {
-                                await deleteContract(contract)
+                                if isEditing {
+                                    await updateContract(contract)
+                                } else {
+                                    await createContract(contract)
+                                }
+                                await MainActor.run {
+                                    showingAddContract = false
+                                    isEditing = false
+                                    newContract = Contract(
+                                        id: nil,
+                                        clientID: client.id,
+                                        vereinID: nil,
+                                        startDatum: Date(),
+                                        endDatum: nil,
+                                        gehalt: nil,
+                                        vertragsdetails: nil
+                                    )
+                                }
                             }
-                        } label: {
-                            Label("Löschen", systemImage: "trash")
-                                .foregroundColor(.white) // Weiße Schrift und Symbol
+                        },
+                        onCancel: {
+                            Task {
+                                await MainActor.run {
+                                    showingAddContract = false
+                                    isEditing = false
+                                    newContract = Contract(
+                                        id: nil,
+                                        clientID: client.id,
+                                        vereinID: nil,
+                                        startDatum: Date(),
+                                        endDatum: nil,
+                                        gehalt: nil,
+                                        vertragsdetails: nil
+                                    )
+                                }
+                            }
                         }
-                    }
+                    )
                 }
-            }
-            .scrollContentBackground(.hidden) // Standard-Hintergrund der Liste ausblenden
-            .background(Color.black) // Schwarzer Hintergrund für die Liste
-            .navigationTitle("Verträge von \(client.vorname) \(client.name)")
-            .foregroundColor(.white) // Weiße Schrift für den Titel
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Neuen Vertrag anlegen") {
-                        showingAddContract = true
-                        isEditing = false
-                        newContract = Contract(
-                            id: nil,
-                            clientID: client.id,
-                            vereinID: nil,
-                            startDatum: Date(),
-                            endDatum: nil,
-                            gehalt: nil,
-                            vertragsdetails: nil
-                        )
-                    }
-                    .foregroundColor(.white) // Weiße Schrift
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) {
+                            errorMessage = ""
+                        }
+                    )
                 }
-            }
-            .sheet(isPresented: $showingAddContract) {
-                AddContractView(
-                    contract: $newContract,
-                    isEditing: isEditing,
-                    onSave: { contract in
-                        Task {
-                            if isEditing {
-                                await updateContract(contract)
-                            } else {
-                                await createContract(contract)
-                            }
-                            await MainActor.run {
-                                showingAddContract = false
-                                isEditing = false
-                                newContract = Contract(
-                                    id: nil,
-                                    clientID: client.id,
-                                    vereinID: nil,
-                                    startDatum: Date(),
-                                    endDatum: nil,
-                                    gehalt: nil,
-                                    vertragsdetails: nil
-                                )
-                            }
-                        }
-                    },
-                    onCancel: {
-                        Task {
-                            await MainActor.run {
-                                showingAddContract = false
-                                isEditing = false
-                                newContract = Contract(
-                                    id: nil,
-                                    clientID: client.id,
-                                    vereinID: nil,
-                                    startDatum: Date(),
-                                    endDatum: nil,
-                                    gehalt: nil,
-                                    vertragsdetails: nil
-                                )
-                            }
-                        }
-                    }
-                )
-            }
-            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-                Alert(
-                    title: Text("Fehler").foregroundColor(.white),
-                    message: Text(errorMessage).foregroundColor(.white),
-                    dismissButton: .default(Text("OK").foregroundColor(.white)) {
-                        errorMessage = ""
-                    }
-                )
-            }
-            .task {
-                await loadContracts()
+                .task {
+                    await loadContracts()
+                }
             }
         }
     }

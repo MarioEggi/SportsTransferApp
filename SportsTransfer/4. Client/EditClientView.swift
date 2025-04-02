@@ -8,6 +8,7 @@ struct EditClientView: View {
     var onSave: (Client) -> Void
     var onCancel: () -> Void
     @EnvironmentObject var authManager: AuthManager
+    @Environment(\.dismiss) var dismiss
 
     @State private var showingPositionPicker = false
     @State private var showingNationalityPicker = false
@@ -51,6 +52,13 @@ struct EditClientView: View {
     @State private var showingCVPicker = false
     @State private var showingVideoPicker = false
 
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5") // Sehr helles Grau
+    private let cardBackgroundColor = Color(hex: "#E0E0E0") // Leicht dunkleres Grau für Karten
+    private let accentColor = Color(hex: "#00C4B4") // Akzentfarbe bleibt gleich
+    private let textColor = Color(hex: "#333333") // Dunkle Textfarbe
+    private let secondaryTextColor = Color(hex: "#666666") // Mittleres Grau für sekundären Text
+
     init(client: Binding<Client>, onSave: @escaping (Client) -> Void, onCancel: @escaping () -> Void) {
         self._client = client
         self.onSave = onSave
@@ -84,70 +92,77 @@ struct EditClientView: View {
 
     var body: some View {
         NavigationView {
-            Form {
-                clientDataSection
-                if client.typ == "Spieler" || client.typ == "Spielerin" {
-                    positionSection
-                }
-                contactInfoSection
-                transfermarktSection
-                additionalInfoSection
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.black)
-            .navigationTitle("Profil bearbeiten")
-            .foregroundColor(.white)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { onCancel() }
-                        .foregroundColor(.white)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") {
-                        let updatedClient = createUpdatedClient()
-                        print("EditClientView - Client vor dem Speichern: \(updatedClient)")
-                        print("EditClientView - ProfileImage vor dem Speichern: \(profileImage != nil ? "Bild vorhanden" : "Kein Bild")")
-                        print("EditClientView - ImageURL vor dem Speichern: \(imageURL)")
-                        Task { await saveClient(updatedClient: updatedClient) }
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                List {
+                    clientDataSection
+                    if client.typ == "Spieler" || client.typ == "Spielerin" {
+                        positionSection
                     }
-                    .disabled(!isValidClient())
-                    .foregroundColor(.white)
+                    contactInfoSection
+                    transfermarktSection
+                    additionalInfoSection
                 }
-            }
-            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-                Alert(
-                    title: Text("Fehler").foregroundColor(.white),
-                    message: Text(errorMessage).foregroundColor(.white),
-                    dismissButton: .default(Text("OK").foregroundColor(.white)) { errorMessage = "" }
-                )
-            }
-            .onChange(of: selectedPhoto) { newValue in
-                print("EditClientView - SelectedPhoto geändert: \(newValue != nil ? "Foto ausgewählt" : "Kein Foto")")
-                Task { await loadSelectedImage() }
-            }
-            .onChange(of: vereinID) { _ in
-                Task { await updateLeagueAndAbteilung() }
-            }
-            .sheet(isPresented: $showingCVPicker) {
-                DocumentPicker(
-                    allowedContentTypes: [.pdf, .text],
-                    onPick: { url in
-                        Task { await loadSpielerCV(from: url) }
+                .listStyle(PlainListStyle())
+                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                .listRowSeparator(.hidden)
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .tint(accentColor)
+                .foregroundColor(textColor)
+                .navigationTitle("Profil bearbeiten")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { dismiss() }
+                            .foregroundColor(accentColor)
                     }
-                )
-            }
-            .sheet(isPresented: $showingVideoPicker) {
-                DocumentPicker(
-                    allowedContentTypes: [.movie],
-                    onPick: { url in
-                        Task { await loadVideo(from: url) }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Speichern") {
+                            let updatedClient = createUpdatedClient()
+                            print("EditClientView - Client vor dem Speichern: \(updatedClient)")
+                            print("EditClientView - ProfileImage vor dem Speichern: \(profileImage != nil ? "Bild vorhanden" : "Kein Bild")")
+                            print("EditClientView - ImageURL vor dem Speichern: \(imageURL)")
+                            Task { await saveClient(updatedClient: updatedClient) }
+                        }
+                        .disabled(!isValidClient())
+                        .foregroundColor(accentColor)
                     }
-                )
-            }
-            .task {
-                await loadClubOptions()
-                await loadSponsors()
-                await loadContractData()
+                }
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) { errorMessage = "" }
+                    )
+                }
+                .onChange(of: selectedPhoto) { newValue in
+                    print("EditClientView - SelectedPhoto geändert: \(newValue != nil ? "Foto ausgewählt" : "Kein Foto")")
+                    Task { await loadSelectedImage() }
+                }
+                .onChange(of: vereinID) { _ in
+                    Task { await updateLeagueAndAbteilung() }
+                }
+                .sheet(isPresented: $showingCVPicker) {
+                    DocumentPicker(
+                        allowedContentTypes: [.pdf, .text],
+                        onPick: { url in
+                            Task { await loadSpielerCV(from: url) }
+                        }
+                    )
+                }
+                .sheet(isPresented: $showingVideoPicker) {
+                    DocumentPicker(
+                        allowedContentTypes: [.movie],
+                        onPick: { url in
+                            Task { await loadVideo(from: url) }
+                        }
+                    )
+                }
+                .task {
+                    await loadClubOptions()
+                    await loadSponsors()
+                    await loadContractData()
+                }
             }
         }
     }
@@ -191,297 +206,416 @@ struct EditClientView: View {
     }
 
     private var clientDataSection: some View {
-        Section(header: Text("Klientendaten").foregroundColor(.white)) {
-            TextField("Vorname", text: $vorname)
-                .foregroundColor(.white)
-            TextField("Name", text: $name)
-                .foregroundColor(.white)
-            DatePicker("Geburtsdatum", selection: Binding(
-                get: { geburtsdatum ?? Date() },
-                set: { geburtsdatum = $0 }
-            ), displayedComponents: .date)
-                .datePickerStyle(.compact)
-                .foregroundColor(.white)
-                .accentColor(.white)
-            if isLoadingClubs {
-                ProgressView("Lade Vereine...")
-                    .tint(.white)
-            } else {
-                Picker("Verein", selection: $vereinID) {
-                    Text("Kein Verein").tag(String?.none)
-                    ForEach(clubOptions.filter { $0.abteilungForGender(client.geschlecht) != nil }) { club in
-                        Text(club.name).tag(club.id as String?)
+        Section(header: Text("Klientendaten").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField("Vorname", text: $vorname)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Name", text: $name)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                DatePicker("Geburtsdatum", selection: Binding(
+                    get: { geburtsdatum ?? Date() },
+                    set: { geburtsdatum = $0 }
+                ), displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .foregroundColor(textColor)
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                if isLoadingClubs {
+                    ProgressView("Lade Vereine...")
+                        .tint(accentColor)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                } else {
+                    Picker("Verein", selection: $vereinID) {
+                        Text("Kein Verein").tag(String?.none)
+                        ForEach(clubOptions.filter { $0.abteilungForGender(client.geschlecht) != nil }) { club in
+                            Text(club.name).tag(club.id as String?)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .foregroundColor(textColor)
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
                 }
-                .pickerStyle(.menu)
-                .foregroundColor(.white)
-                .accentColor(.white)
+                Text("Liga: \(liga ?? "Keine")")
+                    .foregroundColor(secondaryTextColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                DatePicker("Vertragslaufzeit", selection: Binding(
+                    get: { vertragBis ?? Date() },
+                    set: { vertragBis = $0 }
+                ), displayedComponents: .date)
+                    .foregroundColor(textColor)
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Vertragsoptionen", text: Binding(
+                    get: { vertragsOptionen ?? "" },
+                    set: { vertragsOptionen = $0.isEmpty ? nil : $0 }
+                ))
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Gehalt (€)", text: Binding(
+                    get: { gehalt != nil ? String(gehalt!) : "" },
+                    set: { gehalt = Double($0) }
+                ))
+                    .keyboardType(.decimalPad)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Größe (cm)", text: Binding(
+                    get: { groesse != nil ? String(groesse!) : "" },
+                    set: { groesse = Int($0) }
+                ))
+                    .keyboardType(.numberPad)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                profileImagePicker
+                nationalityPicker
+                TextField("Nationalmannschaft", text: Binding(
+                    get: { nationalmannschaft ?? "" },
+                    set: { nationalmannschaft = $0.isEmpty ? nil : $0 }
+                ))
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
             }
-            Text("Liga: \(liga ?? "Keine")")
-                .foregroundColor(.gray)
-            DatePicker("Vertragslaufzeit", selection: Binding(
-                get: { vertragBis ?? Date() },
-                set: { vertragBis = $0 }
-            ), displayedComponents: .date)
-                .foregroundColor(.white)
-                .accentColor(.white)
-            TextField("Vertragsoptionen", text: Binding(
-                get: { vertragsOptionen ?? "" },
-                set: { vertragsOptionen = $0.isEmpty ? nil : $0 }
-            ))
-                .foregroundColor(.white)
-            TextField("Gehalt (€)", text: Binding(
-                get: { gehalt != nil ? String(gehalt!) : "" },
-                set: { gehalt = Double($0) }
-            ))
-                .keyboardType(.decimalPad)
-                .foregroundColor(.white)
-            TextField("Größe (cm)", text: Binding(
-                get: { groesse != nil ? String(groesse!) : "" },
-                set: { groesse = Int($0) }
-            ))
-                .keyboardType(.numberPad)
-                .foregroundColor(.white)
-            profileImagePicker
-            nationalityPicker
-            TextField("Nationalmannschaft", text: Binding(
-                get: { nationalmannschaft ?? "" },
-                set: { nationalmannschaft = $0.isEmpty ? nil : $0 }
-            ))
-                .foregroundColor(.white)
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var positionSection: some View {
-        Section(header: Text("Positionen").foregroundColor(.white)) {
-            Button(action: {
-                print("EditClientView - PositionPicker geöffnet")
-                showingPositionPicker = true
-            }) {
-                Text(selectedPositions.isEmpty ? "Positionen auswählen" : selectedPositions.joined(separator: ", "))
-                    .foregroundColor(selectedPositions.isEmpty ? .gray : .white)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .sheet(isPresented: $showingPositionPicker) {
-                NavigationView {
-                    MultiPicker(
-                        title: "Positionen auswählen",
-                        selection: $selectedPositions,
-                        options: Constants.positionOptions,
-                        isNationalityPicker: false
-                    )
-                    .navigationTitle("Positionen")
-                    .foregroundColor(.white)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Fertig") {
-                                showingPositionPicker = false
+        Section(header: Text("Positionen").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                Button(action: {
+                    print("EditClientView - PositionPicker geöffnet")
+                    showingPositionPicker = true
+                }) {
+                    Text(selectedPositions.isEmpty ? "Positionen auswählen" : selectedPositions.joined(separator: ", "))
+                        .foregroundColor(selectedPositions.isEmpty ? secondaryTextColor : textColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                }
+                .sheet(isPresented: $showingPositionPicker) {
+                    NavigationView {
+                        MultiPicker(
+                            title: "Positionen auswählen",
+                            selection: $selectedPositions,
+                            options: Constants.positionOptions,
+                            isNationalityPicker: false
+                        )
+                        .navigationTitle("Positionen")
+                        .foregroundColor(textColor)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Fertig") {
+                                    showingPositionPicker = false
+                                }
+                                .foregroundColor(accentColor)
                             }
-                            .foregroundColor(.white)
                         }
+                        .background(backgroundColor)
                     }
-                    .background(Color.black)
                 }
-            }
-            Picker("Schuhmarke", selection: Binding(
-                get: { schuhmarke ?? "" },
-                set: { schuhmarke = $0.isEmpty ? nil : $0 }
-            )) {
-                Text("Keine Marke").tag("")
-                ForEach(sponsorOptions.filter { $0.category == "Sportartikelhersteller" }) { sponsor in
-                    Text(sponsor.name).tag(sponsor.name)
+                Picker("Schuhmarke", selection: Binding(
+                    get: { schuhmarke ?? "" },
+                    set: { schuhmarke = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("Keine Marke").tag("")
+                    ForEach(sponsorOptions.filter { $0.category == "Sportartikelhersteller" }) { sponsor in
+                        Text(sponsor.name).tag(sponsor.name)
+                    }
                 }
-            }
-            .pickerStyle(.menu)
-            .foregroundColor(.white)
-            .accentColor(.white)
-            Picker("Starker Fuß", selection: Binding(
-                get: { starkerFuss ?? "" },
-                set: { starkerFuss = $0.isEmpty ? nil : $0 }
-            )) {
-                Text("Nicht angegeben").tag("")
-                ForEach(Constants.strongFootOptions, id: \.self) { foot in
-                    Text(foot).tag(foot)
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                Picker("Starker Fuß", selection: Binding(
+                    get: { starkerFuss ?? "" },
+                    set: { starkerFuss = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("Nicht angegeben").tag("")
+                    ForEach(Constants.strongFootOptions, id: \.self) { foot in
+                        Text(foot).tag(foot)
+                    }
                 }
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
             }
-            .pickerStyle(.menu)
-            .foregroundColor(.white)
-            .accentColor(.white)
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var contactInfoSection: some View {
-        Section(header: Text("Kontaktinformationen").foregroundColor(.white)) {
-            TextField("Telefon", text: Binding(
-                get: { kontaktTelefon ?? "" },
-                set: { kontaktTelefon = $0.isEmpty ? nil : $0 }
-            ))
-                .foregroundColor(.white)
-            TextField("E-Mail", text: Binding(
-                get: { kontaktEmail ?? "" },
-                set: { kontaktEmail = $0.isEmpty ? nil : $0 }
-            ))
-                .foregroundColor(.white)
-            TextField("Adresse", text: Binding(
-                get: { adresse ?? "" },
-                set: { adresse = $0.isEmpty ? nil : $0 }
-            ))
-                .foregroundColor(.white)
+        Section(header: Text("Kontaktinformationen").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField("Telefon", text: Binding(
+                    get: { kontaktTelefon ?? "" },
+                    set: { kontaktTelefon = $0.isEmpty ? nil : $0 }
+                ))
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("E-Mail", text: Binding(
+                    get: { kontaktEmail ?? "" },
+                    set: { kontaktEmail = $0.isEmpty ? nil : $0 }
+                ))
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Adresse", text: Binding(
+                    get: { adresse ?? "" },
+                    set: { adresse = $0.isEmpty ? nil : $0 }
+                ))
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+            }
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var transfermarktSection: some View {
-        Section(header: Text(client.geschlecht == "männlich" ? "Transfermarkt" : "Soccerdonna").foregroundColor(.white)) {
-            TextField(client.geschlecht == "männlich" ? "Transfermarkt-ID" : "Soccerdonna-ID", text: Binding(
-                get: { transfermarktID ?? "" },
-                set: { transfermarktID = $0.isEmpty ? nil : $0 }
-            ))
-                .keyboardType(.numberPad)
-                .foregroundColor(.white)
-                .customPlaceholder(when: (transfermarktID ?? "").isEmpty) {
-                    Text(client.geschlecht == "männlich" ? "z. B. 690425" : "z. B. 31388")
-                        .foregroundColor(.gray)
-                }
-                .onChange(of: transfermarktID) { newID in
-                    if let newID = newID, !newID.isEmpty {
-                        Task {
-                            await MainActor.run { isLoadingTransfermarkt = true }
-                            do {
-                                let playerData: PlayerData
-                                if client.geschlecht == "männlich" {
-                                    playerData = try await TransfermarktService.shared.fetchPlayerData(forPlayerID: newID)
-                                } else {
-                                    playerData = try await SoccerdonnaService.shared.fetchPlayerData(forPlayerID: newID)
-                                }
-                                await MainActor.run {
-                                    isLoadingTransfermarkt = false
-                                    transfermarktError = ""
-                                    if vorname.isEmpty, let fullName = playerData.name {
-                                        let parts = fullName.split(separator: " ")
-                                        if parts.count >= 2 {
-                                            vorname = String(parts[0])
-                                            name = String(parts.dropFirst().joined(separator: " "))
-                                        } else {
-                                            name = fullName
+        Section(header: Text(client.geschlecht == "männlich" ? "Transfermarkt" : "Soccerdonna").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField(client.geschlecht == "männlich" ? "Transfermarkt-ID" : "Soccerdonna-ID", text: Binding(
+                    get: { transfermarktID ?? "" },
+                    set: { transfermarktID = $0.isEmpty ? nil : $0 }
+                ))
+                    .keyboardType(.numberPad)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .customPlaceholder(when: (transfermarktID ?? "").isEmpty) {
+                        Text(client.geschlecht == "männlich" ? "z. B. 690425" : "z. B. 31388")
+                            .foregroundColor(secondaryTextColor)
+                    }
+                    .onChange(of: transfermarktID) { newID in
+                        if let newID = newID, !newID.isEmpty {
+                            Task {
+                                await MainActor.run { isLoadingTransfermarkt = true }
+                                do {
+                                    let playerData: PlayerData
+                                    if client.geschlecht == "männlich" {
+                                        playerData = try await TransfermarktService.shared.fetchPlayerData(forPlayerID: newID)
+                                    } else {
+                                        playerData = try await SoccerdonnaService.shared.fetchPlayerData(forPlayerID: newID)
+                                    }
+                                    await MainActor.run {
+                                        isLoadingTransfermarkt = false
+                                        transfermarktError = ""
+                                        if vorname.isEmpty, let fullName = playerData.name {
+                                            let parts = fullName.split(separator: " ")
+                                            if parts.count >= 2 {
+                                                vorname = String(parts[0])
+                                                name = String(parts.dropFirst().joined(separator: " "))
+                                            } else {
+                                                name = fullName
+                                            }
+                                        }
+                                        if selectedPositions.isEmpty, let position = playerData.position {
+                                            selectedPositions = [position]
+                                        }
+                                        if selectedNationalities.isEmpty, let nationalities = playerData.nationalitaet {
+                                            selectedNationalities = nationalities
+                                        }
+                                        if geburtsdatum == nil, let birthdate = playerData.geburtsdatum {
+                                            geburtsdatum = birthdate
+                                        }
+                                        if vereinID == nil, let clubID = playerData.vereinID,
+                                           let club = clubOptions.first(where: { $0.name == clubID }) {
+                                            vereinID = club.id
+                                            Task { await updateLeagueAndAbteilung() }
+                                        }
+                                        if vertragBis == nil, let contractEnd = playerData.contractEnd {
+                                            vertragBis = contractEnd
                                         }
                                     }
-                                    if selectedPositions.isEmpty, let position = playerData.position {
-                                        selectedPositions = [position]
+                                } catch {
+                                    await MainActor.run {
+                                        isLoadingTransfermarkt = false
+                                        transfermarktError = "Fehler beim Abrufen der Daten: \(error.localizedDescription)"
                                     }
-                                    if selectedNationalities.isEmpty, let nationalities = playerData.nationalitaet {
-                                        selectedNationalities = nationalities
-                                    }
-                                    if geburtsdatum == nil, let birthdate = playerData.geburtsdatum {
-                                        geburtsdatum = birthdate
-                                    }
-                                    if vereinID == nil, let clubID = playerData.vereinID,
-                                       let club = clubOptions.first(where: { $0.name == clubID }) {
-                                        vereinID = club.id
-                                        Task { await updateLeagueAndAbteilung() }
-                                    }
-                                    if vertragBis == nil, let contractEnd = playerData.contractEnd {
-                                        vertragBis = contractEnd
-                                    }
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    isLoadingTransfermarkt = false
-                                    transfermarktError = "Fehler beim Abrufen der Daten: \(error.localizedDescription)"
                                 }
                             }
                         }
                     }
+                if isLoadingTransfermarkt {
+                    ProgressView("Lade Daten...")
+                        .tint(accentColor)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
                 }
-            if isLoadingTransfermarkt {
-                ProgressView("Lade Daten...")
-                    .tint(.white)
+                if !transfermarktError.isEmpty {
+                    Text(transfermarktError)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                }
             }
-            if !transfermarktError.isEmpty {
-                Text(transfermarktError)
-                    .foregroundColor(.red)
-                    .font(.caption)
-            }
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var additionalInfoSection: some View {
-        Section(header: Text("Zusätzliche Informationen").foregroundColor(.white)) {
-            TextField("Konditionen", text: Binding(
-                get: { konditionen ?? "" },
-                set: { konditionen = $0.isEmpty ? nil : $0 }
-            ))
-                .foregroundColor(.white)
-            Picker("Art", selection: Binding(
-                get: { art ?? "" },
-                set: { art = $0.isEmpty ? nil : $0 }
-            )) {
-                Text("Nicht angegeben").tag("")
-                Text("Vereinswechsel").tag("Vereinswechsel")
-                Text("Vertragsverlängerung").tag("Vertragsverlängerung")
+        Section(header: Text("Zusätzliche Informationen").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField("Konditionen", text: Binding(
+                    get: { konditionen ?? "" },
+                    set: { konditionen = $0.isEmpty ? nil : $0 }
+                ))
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                Picker("Art", selection: Binding(
+                    get: { art ?? "" },
+                    set: { art = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("Nicht angegeben").tag("")
+                    Text("Vereinswechsel").tag("Vereinswechsel")
+                    Text("Vertragsverlängerung").tag("Vertragsverlängerung")
+                }
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Spieler-CV")
+                        .font(.subheadline)
+                        .foregroundColor(textColor)
+                    Button(action: { showingCVPicker = true }) {
+                        Label("CV auswählen", systemImage: "doc")
+                            .foregroundColor(accentColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                    if let spielerCVURL = spielerCVURL {
+                        Text("Aktuell: \(spielerCVURL.split(separator: "/").last ?? "")")
+                            .font(.caption)
+                            .foregroundColor(secondaryTextColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Video")
+                        .font(.subheadline)
+                        .foregroundColor(textColor)
+                    Button(action: { showingVideoPicker = true }) {
+                        Label("Video auswählen", systemImage: "video")
+                            .foregroundColor(accentColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                    if let videoURL = videoURL {
+                        Text("Aktuell: \(videoURL.split(separator: "/").last ?? "")")
+                            .font(.caption)
+                            .foregroundColor(secondaryTextColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                }
             }
-            .pickerStyle(.menu)
-            .foregroundColor(.white)
-            .accentColor(.white)
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Spieler-CV")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                Button(action: { showingCVPicker = true }) {
-                    Label("CV auswählen", systemImage: "doc")
-                        .foregroundColor(.white)
-                }
-                if let spielerCVURL = spielerCVURL {
-                    Text("Aktuell: \(spielerCVURL.split(separator: "/").last ?? "")")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Video")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                Button(action: { showingVideoPicker = true }) {
-                    Label("Video auswählen", systemImage: "video")
-                        .foregroundColor(.white)
-                }
-                if let videoURL = videoURL {
-                    Text("Aktuell: \(videoURL.split(separator: "/").last ?? "")")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var profileImagePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Profilbild")
                 .font(.subheadline)
-                .foregroundColor(.white)
-            
+                .foregroundColor(textColor)
             PhotosPicker(
                 selection: $selectedPhoto,
                 matching: .images,
                 photoLibrary: .shared()
             ) {
                 Label("Bild aus Fotogalerie auswählen", systemImage: "photo")
-                    .foregroundColor(.white)
+                    .foregroundColor(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
             }
-            
             TextField("Oder Bild-URL eingeben", text: $imageURL)
                 .autocapitalization(.none)
                 .keyboardType(.URL)
-                .foregroundColor(.white)
-            
+                .foregroundColor(textColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
             if isUploadingImage {
                 ProgressView("Bild wird hochgeladen...")
-                    .tint(.white)
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
             } else if let image = profileImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
                     .frame(height: 100)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                    )
             } else if let urlString = client.profilbildURL, !urlString.isEmpty, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     switch phase {
@@ -491,18 +625,32 @@ struct EditClientView: View {
                             .scaledToFit()
                             .frame(height: 100)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
                     case .failure, .empty:
                         Image(systemName: "photo")
                             .resizable()
                             .scaledToFit()
                             .frame(height: 100)
-                            .foregroundColor(.gray)
+                            .foregroundColor(secondaryTextColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
                     @unknown default:
                         Image(systemName: "photo")
                             .resizable()
                             .scaledToFit()
                             .frame(height: 100)
-                            .foregroundColor(.gray)
+                            .foregroundColor(secondaryTextColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
                     }
                 }
             } else {
@@ -510,9 +658,15 @@ struct EditClientView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(height: 100)
-                    .foregroundColor(.gray)
+                    .foregroundColor(secondaryTextColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                    )
             }
         }
+        .padding(.vertical, 8)
     }
 
     private var nationalityPicker: some View {
@@ -521,8 +675,10 @@ struct EditClientView: View {
             showingNationalityPicker = true
         }) {
             Text(selectedNationalities.isEmpty ? "Nationalitäten auswählen" : selectedNationalities.joined(separator: ", "))
-                .foregroundColor(selectedNationalities.isEmpty ? .gray : .white)
+                .foregroundColor(selectedNationalities.isEmpty ? secondaryTextColor : textColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
         }
         .sheet(isPresented: $showingNationalityPicker) {
             NavigationView {
@@ -533,18 +689,19 @@ struct EditClientView: View {
                     isNationalityPicker: true
                 )
                 .navigationTitle("Nationalitäten")
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Fertig") {
                             showingNationalityPicker = false
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(accentColor)
                     }
                 }
-                .background(Color.black)
+                .background(backgroundColor)
             }
         }
+        .padding(.vertical, 8)
     }
 
     private func loadClubOptions() async {

@@ -9,85 +9,117 @@ struct ContractDetailView: View {
     @State private var club: Club? = nil
     @State private var errorMessage = ""
 
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Text("Vertragsdetails")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .padding()
-                    .foregroundColor(.white) // Weiße Schrift
+            ScrollView {
+                VStack(spacing: 15) {
+                    List {
+                        Section(header: Text("Vertragsdetails").foregroundColor(textColor)) {
+                            VStack(spacing: 10) {
+                                if let client = client {
+                                    labeledField(label: "Klient", value: "\(client.vorname) \(client.name)")
+                                }
+                                if let club = club {
+                                    labeledField(label: "Verein", value: club.name)
+                                }
+                                labeledField(label: "Startdatum", value: dateFormatter.string(from: contract.startDatum))
+                                if let endDatum = contract.endDatum {
+                                    labeledField(label: "Enddatum", value: dateFormatter.string(from: endDatum))
+                                }
+                                if let gehalt = contract.gehalt {
+                                    labeledField(label: "Gehalt", value: String(format: "%.2f €", gehalt))
+                                }
+                                if let vertragsdetails = contract.vertragsdetails {
+                                    labeledField(label: "Details", value: vertragsdetails)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(cardBackgroundColor)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                )
+                                .padding(.vertical, 2)
+                        )
+                    }
+                    .listStyle(PlainListStyle())
+                    .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundColor)
+                    .foregroundColor(textColor)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    if let client = client {
-                        Text("Klient: \(client.vorname) \(client.name)")
-                            .font(.headline)
-                            .foregroundColor(.white) // Weiße Schrift
-                    }
-                    if let club = club {
-                        Text("Verein: \(club.name)")
-                            .font(.headline)
-                            .foregroundColor(.white) // Weiße Schrift
-                    }
-                    Text("Startdatum: \(dateFormatter.string(from: contract.startDatum))")
-                        .foregroundColor(.white) // Weiße Schrift
-                    if let endDatum = contract.endDatum {
-                        Text("Enddatum: \(dateFormatter.string(from: endDatum))")
-                            .foregroundColor(.white) // Weiße Schrift
-                    }
-                    if let gehalt = contract.gehalt {
-                        Text("Gehalt: \(String(format: "%.2f €", gehalt))")
-                            .foregroundColor(.white) // Weiße Schrift
-                    }
-                    if let vertragsdetails = contract.vertragsdetails {
-                        Text("Details: \(vertragsdetails)")
-                            .foregroundColor(.white) // Weiße Schrift
+                    if authManager.userRole == .mitarbeiter {
+                        Button(action: { showingEditSheet = true }) {
+                            Text("Bearbeiten")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(accentColor)
+                                .foregroundColor(textColor)
+                                .cornerRadius(10)
+                        }
+                        .padding()
                     }
                 }
-                .padding()
-                .background(Color.gray.opacity(0.2)) // Dunklerer Hintergrund
-                .cornerRadius(10)
-
-                if authManager.userRole == .mitarbeiter {
-                    Button("Bearbeiten") {
-                        showingEditSheet = true
+                .background(backgroundColor)
+                .navigationTitle("Vertrag")
+                .navigationBarTitleDisplayMode(.inline)
+                .foregroundColor(textColor)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if authManager.userRole == .mitarbeiter {
+                            Button(action: { showingEditSheet = true }) {
+                                Image(systemName: "pencil")
+                                    .foregroundColor(accentColor)
+                            }
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue) // Blaue Schaltfläche
-                    .foregroundColor(.white) // Weiße Schrift
-                    .padding()
                 }
+                .sheet(isPresented: $showingEditSheet) {
+                    AddContractView(
+                        contract: .constant(contract),
+                        isEditing: true,
+                        onSave: { _ in
+                            showingEditSheet = false
+                        },
+                        onCancel: { showingEditSheet = false }
+                    )
+                }
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) {
+                            errorMessage = ""
+                        }
+                    )
+                }
+                .task {
+                    await loadClientAndClub()
+                }
+            }
+        }
+    }
 
-                Spacer()
-            }
-            .padding()
-            .background(Color.black) // Schwarzer Hintergrund für die gesamte View
-            .navigationTitle("Vertrag")
-            .foregroundColor(.white) // Weiße Schrift für den Titel
-            .task {
-                await loadClientAndClub()
-            }
-            .sheet(isPresented: $showingEditSheet) {
-                AddContractView(
-                    contract: .constant(contract),
-                    isEditing: true,
-                    onSave: { _ in
-                        showingEditSheet = false
-                    },
-                    onCancel: {
-                        showingEditSheet = false
-                    }
-                )
-            }
-            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-                Alert(
-                    title: Text("Fehler").foregroundColor(.white),
-                    message: Text(errorMessage).foregroundColor(.white),
-                    dismissButton: .default(Text("OK").foregroundColor(.white)) {
-                        errorMessage = ""
-                    }
-                )
-            }
+    private func labeledField(label: String, value: String?) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(secondaryTextColor)
+            Spacer()
+            Text(value ?? "Nicht angegeben")
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .foregroundColor(textColor)
         }
     }
 
@@ -101,13 +133,13 @@ struct ContractDetailView: View {
     private func loadClientAndClub() async {
         do {
             if let clientID = contract.clientID {
-                let (clients, _) = try await FirestoreManager.shared.getClients(limit: 1000)
+                let (clients, _) = try await FirestoreManager.shared.getClients(lastDocument: nil, limit: 1000)
                 await MainActor.run {
                     self.client = clients.first { $0.id == clientID }
                 }
             }
             if let vereinID = contract.vereinID {
-                let (clubs, _) = try await FirestoreManager.shared.getClubs(limit: 1000)
+                let (clubs, _) = try await FirestoreManager.shared.getClubs(lastDocument: nil, limit: 1000)
                 await MainActor.run {
                     self.club = clubs.first { $0.name == vereinID }
                 }

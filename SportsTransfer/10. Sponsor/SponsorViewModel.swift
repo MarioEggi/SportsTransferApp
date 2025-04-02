@@ -1,3 +1,6 @@
+//
+//  SponsorViewModel.swift
+
 import SwiftUI
 import FirebaseFirestore
 

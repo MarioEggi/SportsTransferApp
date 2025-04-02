@@ -10,188 +10,254 @@ struct ClubView: View {
     @State private var errorMessage: String = ""
     @State private var showingEditSheet = false
 
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
+
     init(clubID: String) {
         self.clubID = clubID
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                if let club = club {
-                    if isLoadingImage {
-                        ProgressView("Lade Logo...")
-                            .frame(width: 100, height: 100)
-                            .tint(.white)
-                    } else if let image = logoImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 100, height: 100)
-                            .clipShape(Circle())
-                    } else {
-                        Image(systemName: "building.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 100, height: 100)
-                            .foregroundColor(.gray)
-                            .clipShape(Circle())
-                    }
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 15) {
+                    if let club = club {
+                        VStack(spacing: 10) {
+                            if isLoadingImage {
+                                ProgressView("Lade Logo...")
+                                    .tint(accentColor)
+                                    .frame(width: 100, height: 100)
+                            } else if let image = logoImage {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                            } else {
+                                Image(systemName: "building.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 100)
+                                    .foregroundColor(secondaryTextColor)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(accentColor.opacity(0.3), lineWidth: 1))
+                            }
 
-                    Text(club.name)
-                        .font(.title)
-                        .bold()
-                        .foregroundColor(.white)
+                            Text(club.name)
+                                .font(.title2)
+                                .bold()
+                                .foregroundColor(textColor)
+                        }
+                        .padding()
 
-                    Section(header: Text("Allgemeine Informationen").font(.headline).foregroundColor(.white)) {
-                        if let land = club.sharedInfo?.land {
-                            Label(land, systemImage: "globe")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                        }
-                        if let memberCount = club.sharedInfo?.memberCount {
-                            Label("Mitglieder: \(memberCount)", systemImage: "person.2")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                        }
-                        if let founded = club.sharedInfo?.founded {
-                            Label("Gegründet: \(founded)", systemImage: "calendar")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                        }
-                        if let clubDocumentURL = club.sharedInfo?.clubDocumentURL {
-                            Label("Dokument: \(clubDocumentURL.split(separator: "/").last ?? "")", systemImage: "doc")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                        }
-                    }
-
-                    if let mensDepartment = club.mensDepartment {
-                        Section(header: Text("Männerabteilung").font(.headline).foregroundColor(.white)) {
-                            if let league = mensDepartment.league {
-                                Label("Liga: \(league)", systemImage: "sportscourt")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                            if let adresse = mensDepartment.adresse {
-                                Label("Adresse: \(adresse)", systemImage: "mappin.and.ellipse")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                            if let kontaktTelefon = mensDepartment.kontaktTelefon {
-                                Label("Telefon: \(kontaktTelefon)", systemImage: "phone")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                            if let kontaktEmail = mensDepartment.kontaktEmail {
-                                Label("E-Mail: \(kontaktEmail)", systemImage: "envelope")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                    }
-
-                    if let womensDepartment = club.womensDepartment {
-                        Section(header: Text("Frauenabteilung").font(.headline).foregroundColor(.white)) {
-                            if let league = womensDepartment.league {
-                                Label("Liga: \(league)", systemImage: "sportscourt")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                            if let adresse = womensDepartment.adresse {
-                                Label("Adresse: \(adresse)", systemImage: "mappin.and.ellipse")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                            if let kontaktTelefon = womensDepartment.kontaktTelefon {
-                                Label("Telefon: \(kontaktTelefon)", systemImage: "phone")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                            if let kontaktEmail = womensDepartment.kontaktEmail {
-                                Label("E-Mail: \(kontaktEmail)", systemImage: "envelope")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                    }
-
-                    Section(header: Text("Funktionäre").font(.headline).foregroundColor(.white)) {
-                        if funktionäre.isEmpty {
-                            Text("Keine Funktionäre vorhanden.")
-                                .foregroundColor(.gray)
-                        } else {
-                            ForEach(funktionäre) { funktionär in
-                                VStack(alignment: .leading) {
-                                    Text("\(funktionär.vorname) \(funktionär.name)")
-                                        .foregroundColor(.white)
-                                    if let abteilung = funktionär.abteilung {
-                                        Text("Abteilung: \(abteilung)")
-                                            .foregroundColor(.white)
+                        List {
+                            Section(header: Text("Allgemeine Informationen").foregroundColor(textColor)) {
+                                VStack(spacing: 10) {
+                                    if let land = club.sharedInfo?.land {
+                                        labeledField(label: "Land", value: land)
                                     }
-                                    if let position = funktionär.positionImVerein {
-                                        Text("Position: \(position)")
-                                            .foregroundColor(.white)
+                                    if let memberCount = club.sharedInfo?.memberCount {
+                                        labeledField(label: "Mitglieder", value: "\(memberCount)")
+                                    }
+                                    if let founded = club.sharedInfo?.founded {
+                                        labeledField(label: "Gegründet", value: founded)
+                                    }
+                                    if let clubDocumentURL = club.sharedInfo?.clubDocumentURL {
+                                        labeledField(label: "Dokument", value: clubDocumentURL.split(separator: "/").last.map(String.init) ?? "")
                                     }
                                 }
-                                .padding(.vertical, 5)
+                                .padding(.vertical, 8)
                             }
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(cardBackgroundColor)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .padding(.vertical, 2)
+                            )
+
+                            if let mensDepartment = club.mensDepartment {
+                                Section(header: Text("Männerabteilung").foregroundColor(textColor)) {
+                                    VStack(spacing: 10) {
+                                        if let league = mensDepartment.league {
+                                            labeledField(label: "Liga", value: league)
+                                        }
+                                        if let adresse = mensDepartment.adresse {
+                                            labeledField(label: "Adresse", value: adresse)
+                                        }
+                                        if let kontaktTelefon = mensDepartment.kontaktTelefon {
+                                            labeledField(label: "Telefon", value: kontaktTelefon)
+                                        }
+                                        if let kontaktEmail = mensDepartment.kontaktEmail {
+                                            labeledField(label: "E-Mail", value: kontaktEmail)
+                                        }
+                                    }
+                                    .padding(.vertical, 8)
+                                }
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(cardBackgroundColor)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                        )
+                                        .padding(.vertical, 2)
+                                )
+                            }
+
+                            if let womensDepartment = club.womensDepartment {
+                                Section(header: Text("Frauenabteilung").foregroundColor(textColor)) {
+                                    VStack(spacing: 10) {
+                                        if let league = womensDepartment.league {
+                                            labeledField(label: "Liga", value: league)
+                                        }
+                                        if let adresse = womensDepartment.adresse {
+                                            labeledField(label: "Adresse", value: adresse)
+                                        }
+                                        if let kontaktTelefon = womensDepartment.kontaktTelefon {
+                                            labeledField(label: "Telefon", value: kontaktTelefon)
+                                        }
+                                        if let kontaktEmail = womensDepartment.kontaktEmail {
+                                            labeledField(label: "E-Mail", value: kontaktEmail)
+                                        }
+                                    }
+                                    .padding(.vertical, 8)
+                                }
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(cardBackgroundColor)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                        )
+                                        .padding(.vertical, 2)
+                                )
+                            }
+
+                            Section(header: Text("Funktionäre").foregroundColor(textColor)) {
+                                if funktionäre.isEmpty {
+                                    Text("Keine Funktionäre vorhanden.")
+                                        .foregroundColor(secondaryTextColor)
+                                        .padding(.vertical, 8)
+                                } else {
+                                    ForEach(funktionäre) { funktionär in
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text("\(funktionär.vorname) \(funktionär.name)")
+                                                .font(.subheadline)
+                                                .foregroundColor(textColor)
+                                            if let abteilung = funktionär.abteilung {
+                                                Text("Abteilung: \(abteilung)")
+                                                    .font(.caption)
+                                                    .foregroundColor(secondaryTextColor)
+                                            }
+                                            if let position = funktionär.positionImVerein {
+                                                Text("Position: \(position)")
+                                                    .font(.caption)
+                                                    .foregroundColor(secondaryTextColor)
+                                            }
+                                        }
+                                        .padding(.vertical, 8)
+                                    }
+                                }
+                            }
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(cardBackgroundColor)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .padding(.vertical, 2)
+                            )
+                        }
+                        .listStyle(PlainListStyle())
+                        .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                        .scrollContentBackground(.hidden)
+                        .background(backgroundColor)
+                        .foregroundColor(textColor)
+
+                        Button(action: { showingEditSheet = true }) {
+                            Text("Bearbeiten")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(accentColor)
+                                .foregroundColor(textColor)
+                                .cornerRadius(10)
+                        }
+                        .padding()
+                    } else {
+                        Text("Lade Verein...")
+                            .foregroundColor(secondaryTextColor)
+                            .padding()
+                    }
+                }
+                .background(backgroundColor)
+                .navigationTitle(club?.name ?? "Verein")
+                .navigationBarTitleDisplayMode(.inline)
+                .foregroundColor(textColor)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingEditSheet = true }) {
+                            Image(systemName: "pencil")
+                                .foregroundColor(accentColor)
                         }
                     }
-
-                    Button(action: { showingEditSheet = true }) {
-                        Text("Bearbeiten")
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                    }
-                    .sheet(isPresented: $showingEditSheet) {
-                        AddClubView(club: Binding(
-                            get: { club },
+                }
+                .sheet(isPresented: $showingEditSheet) {
+                    EditClubView(
+                        club: Binding(
+                            get: { club ?? Club(id: clubID, name: "", mensDepartment: nil, womensDepartment: nil, sharedInfo: nil) },
                             set: { newClub in self.club = newClub }
-                        ), onSave: { updatedClub in
+                        ),
+                        onSave: { updatedClub in
                             Task {
                                 do {
                                     try await FirestoreManager.shared.updateClub(club: updatedClub)
                                     await MainActor.run {
                                         self.club = updatedClub
-                                        print("Verein erfolgreich aktualisiert")
+                                        showingEditSheet = false
                                     }
+                                    await loadLogoImage()
                                 } catch {
-                                    await MainActor.run {
-                                        errorMessage = "Fehler beim Aktualisieren des Vereins: \(error.localizedDescription)"
-                                    }
-                                }
-                                await MainActor.run {
-                                    showingEditSheet = false
+                                    errorMessage = "Fehler beim Aktualisieren des Vereins: \(error.localizedDescription)"
                                 }
                             }
-                        }, onCancel: {
-                            showingEditSheet = false
-                        })
-                    }
-                } else {
-                    Text("Lade Verein...")
-                        .foregroundColor(.gray)
+                        },
+                        onCancel: { showingEditSheet = false }
+                    )
+                }
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) { errorMessage = "" }
+                    )
+                }
+                .task {
+                    await loadClub()
+                    await loadFunktionäre()
                 }
             }
-            .padding()
-            .background(Color.black)
         }
-        .navigationTitle(club?.name ?? "Verein")
-        .foregroundColor(.white)
-        .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-            Alert(
-                title: Text("Fehler").foregroundColor(.white),
-                message: Text(errorMessage).foregroundColor(.white),
-                dismissButton: .default(Text("OK").foregroundColor(.white)) {
-                    errorMessage = ""
-                }
-            )
-        }
-        .task {
-            await loadClub()
-            await loadFunktionäre()
+    }
+
+    private func labeledField(label: String, value: String?) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(secondaryTextColor)
+            Spacer()
+            Text(value ?? "Nicht angegeben")
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .foregroundColor(textColor)
         }
     }
 
@@ -224,14 +290,12 @@ struct ClubView: View {
                     await MainActor.run {
                         self.logoImage = nil
                         self.isLoadingImage = false
-                        self.errorMessage = "Kein gültiges Bild gefunden."
                     }
                 }
             } catch {
                 await MainActor.run {
                     self.logoImage = nil
                     self.isLoadingImage = false
-                    self.errorMessage = "Fehler beim Laden des Logos: \(error.localizedDescription)"
                 }
             }
         } else {
@@ -250,7 +314,7 @@ struct ClubView: View {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Fehler beim Laden der Funktionäre: \(error.localizedDescription)"
+                errorMessage = "Fehler beim Laden der Funktionäre: \(error.localizedDescription)"
             }
         }
     }

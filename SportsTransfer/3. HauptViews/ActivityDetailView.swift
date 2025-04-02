@@ -1,3 +1,6 @@
+//
+//  ActivityDetailView.swift
+
 import SwiftUI
 import FirebaseFirestore
 

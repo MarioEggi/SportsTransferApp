@@ -10,19 +10,18 @@ struct AddEditReminderView: View {
     @State private var beschreibung: String
     @State private var kategorie: String
 
-    // Farben für das dunkle Design
-    private let backgroundColor = Color(hex: "#1C2526")
-    private let cardBackgroundColor = Color(hex: "#2A3439")
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
     private let accentColor = Color(hex: "#00C4B4")
-    private let textColor = Color(hex: "#E0E0E0")
-    private let secondaryTextColor = Color(hex: "#B0BEC5")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
 
     init(transferProcess: Binding<TransferProcess>, reminder: Reminder?, onSave: @escaping (Reminder) -> Void) {
         self._transferProcess = transferProcess
         self.reminder = reminder
         self.onSave = onSave
 
-        // Initialisierung der Zustandsvariablen
         let initialReminder = reminder ?? Reminder(datum: Date(), beschreibung: "")
         _datum = State(initialValue: initialReminder.datum)
         _beschreibung = State(initialValue: initialReminder.beschreibung)
@@ -30,42 +29,21 @@ struct AddEditReminderView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack {
                 backgroundColor.edgesIgnoringSafeArea(.all)
-
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Titel
-                        Text(reminder == nil ? "Erinnerung hinzufügen" : "Erinnerung bearbeiten")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(textColor)
-                            .padding(.top, 16)
-
-                        // Erinnerung-Details
-                        VStack(alignment: .leading, spacing: 12) {
-                            // Datum
+                List {
+                    Section(header: Text("Erinnerung").foregroundColor(textColor)) {
+                        VStack(spacing: 10) {
                             DatePicker("Datum", selection: $datum, displayedComponents: [.date, .hourAndMinute])
                                 .foregroundColor(textColor)
-                                .accentColor(accentColor)
+                                .tint(accentColor)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
-                                .background(cardBackgroundColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            // Beschreibung
                             TextField("Beschreibung", text: $beschreibung)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Kategorie
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                             Picker("Kategorie", selection: $kategorie) {
                                 Text("Keine").tag("")
                                 Text("Nachfrage").tag("nachfrageErinnerung")
@@ -73,43 +51,49 @@ struct AddEditReminderView: View {
                                 Text("Termin").tag("termin")
                             }
                             .pickerStyle(.menu)
+                            .foregroundColor(textColor)
+                            .tint(accentColor)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
-                            .background(cardBackgroundColor)
-                            .foregroundColor(textColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
-                        .padding()
-                        .background(cardBackgroundColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                        )
-                        .padding(.horizontal)
+                        .padding(.vertical, 8)
                     }
-                    .padding(.bottom, 16)
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
                 }
-            }
-            .navigationTitle(reminder == nil ? "Erinnerung hinzufügen" : "Erinnerung bearbeiten")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
+                .listStyle(PlainListStyle())
+                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .tint(accentColor)
+                .foregroundColor(textColor)
+                .navigationTitle(reminder == nil ? "Erinnerung hinzufügen" : "Erinnerung bearbeiten")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { dismiss() }
+                            .foregroundColor(accentColor)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Speichern") {
+                            let updatedReminder = Reminder(
+                                id: reminder?.id ?? UUID().uuidString,
+                                datum: datum,
+                                beschreibung: beschreibung,
+                                kategorie: kategorie.isEmpty ? nil : kategorie
+                            )
+                            onSave(updatedReminder)
+                            dismiss()
+                        }
+                        .disabled(beschreibung.isEmpty)
                         .foregroundColor(accentColor)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") {
-                        let updatedReminder = Reminder(
-                            id: reminder?.id ?? UUID().uuidString,
-                            datum: datum,
-                            beschreibung: beschreibung,
-                            kategorie: kategorie.isEmpty ? nil : kategorie
-                        )
-                        onSave(updatedReminder)
-                        dismiss()
                     }
-                    .foregroundColor(beschreibung.isEmpty ? secondaryTextColor : accentColor)
-                    .disabled(beschreibung.isEmpty)
                 }
             }
         }

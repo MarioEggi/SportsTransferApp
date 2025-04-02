@@ -5,13 +5,32 @@ import FirebaseFirestore
 @main
 struct SportsTransferApp: App {
     @StateObject private var authManager = AuthManager()
-    @StateObject private var transferProcessViewModel: TransferProcessViewModel // Anpassen
+    @StateObject private var transferProcessViewModel: TransferProcessViewModel
     @State private var hasAttemptedAutoLogin = false
     @State private var isLoadingRole = true
 
     init() {
         FirebaseApp.configure()
         _transferProcessViewModel = StateObject(wrappedValue: TransferProcessViewModel(authManager: AuthManager()))
+        
+        let appearance = UINavigationBarAppearance()
+                appearance.configureWithOpaqueBackground()
+                appearance.backgroundColor = UIColor(Color(hex: "#1C2526")) // backgroundColor
+                appearance.titleTextAttributes = [.foregroundColor: UIColor(Color(hex: "#E0E0E0"))] // textColor
+                appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(Color(hex: "#E0E0E0"))]
+                UINavigationBar.appearance().standardAppearance = appearance
+                UINavigationBar.appearance().scrollEdgeAppearance = appearance
+                UINavigationBar.appearance().tintColor = UIColor(Color(hex: "#00C4B4")) // accentColor
+        
+        // Einmalige Migration
+        Task {
+            do {
+                try await FirestoreManager.shared.migrateTransferProcesses()
+                print("Migration abgeschlossen")
+            } catch {
+                print("Fehler bei der Migration: \(error)")
+            }
+        }
     }
 
     var body: some Scene {
@@ -27,7 +46,7 @@ struct SportsTransferApp: App {
             } else if authManager.isLoggedIn && !isLoadingRole {
                 switch authManager.userRole {
                 case .mitarbeiter:
-                    EmployeeView(authManager: authManager)
+                    EmployeeView()
                         .environmentObject(authManager)
                         .environmentObject(transferProcessViewModel)
                         .onAppear {
@@ -98,9 +117,4 @@ struct SportsTransferApp: App {
             }
         }
     }
-}
-
-#Preview {
-    EmployeeView(authManager: AuthManager())
-        .environmentObject(AuthManager())
 }

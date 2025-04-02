@@ -1,3 +1,6 @@
+//
+//  ClubViewModel.swift
+
 import SwiftUI
 import FirebaseFirestore
 

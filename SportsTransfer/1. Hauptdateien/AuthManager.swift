@@ -16,9 +16,9 @@ class AuthManager: ObservableObject {
     @Published var errorMessage: String?
     private var authHandle: AuthStateDidChangeListenerHandle?
 
-    var currentUser: User? {
-        return Auth.auth().currentUser
-    }
+    var currentUser: FirebaseAuth.User? {
+            return Auth.auth().currentUser
+        }
 
     init() {
         authHandle = Auth.auth().addStateDidChangeListener { [weak self] auth, user in
@@ -113,7 +113,9 @@ class AuthManager: ObservableObject {
             let db = Firestore.firestore()
             db.collection("users").document(user.uid).setData([
                 "email": email,
-                "rolle": role.rawValue
+                "rolle": role.rawValue,
+                "points": 0, // Initiale Punkte
+                "badges": [] // Initiale Abzeichen
             ]) { error in
                 if let error = error {
                     completion(.failure(error))
@@ -122,6 +124,16 @@ class AuthManager: ObservableObject {
                     self.userID = user.uid
                     self.userRole = role
                     self.isLoggedIn = true
+                    // Initialisiere Herausforderungen für Mitarbeiter
+                    if role == .mitarbeiter {
+                        Task {
+                            do {
+                                try await FirestoreManager.shared.initializeUserChallenges(userID: user.uid)
+                            } catch {
+                                print("Fehler beim Initialisieren der Herausforderungen: \(error)")
+                            }
+                        }
+                    }
                     completion(.success(()))
                 }
             }

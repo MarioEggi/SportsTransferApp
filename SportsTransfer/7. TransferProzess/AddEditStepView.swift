@@ -13,19 +13,18 @@ struct AddEditStepView: View {
     @State private var erfolgschance: String
     @State private var checklisteText: String // Für die Eingabe als kommagetrennte Liste
 
-    // Farben für das dunkle Design
-    private let backgroundColor = Color(hex: "#1C2526")
-    private let cardBackgroundColor = Color(hex: "#2A3439")
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
     private let accentColor = Color(hex: "#00C4B4")
-    private let textColor = Color(hex: "#E0E0E0")
-    private let secondaryTextColor = Color(hex: "#B0BEC5")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
 
     init(transferProcess: Binding<TransferProcess>, step: Step?, onSave: @escaping (Step) -> Void) {
         self._transferProcess = transferProcess
         self.step = step
         self.onSave = onSave
 
-        // Initialisierung der Zustandsvariablen
         let initialStep = step ?? Step(typ: "Kontaktaufnahme", status: "geplant", datum: Date())
         _typ = State(initialValue: initialStep.typ)
         _status = State(initialValue: initialStep.status)
@@ -36,22 +35,12 @@ struct AddEditStepView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack {
                 backgroundColor.edgesIgnoringSafeArea(.all)
-
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Titel
-                        Text(step == nil ? "Schritt hinzufügen" : "Schritt bearbeiten")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(textColor)
-                            .padding(.top, 16)
-
-                        // Schritt-Details
-                        VStack(alignment: .leading, spacing: 12) {
-                            // Typ
+                List {
+                    Section(header: Text("Schritt").foregroundColor(textColor)) {
+                        VStack(spacing: 10) {
                             Picker("Typ", selection: $typ) {
                                 Text("Kontaktaufnahme").tag("Kontaktaufnahme")
                                 Text("Zweiter Kontakt").tag("zweitKontakt")
@@ -59,104 +48,82 @@ struct AddEditStepView: View {
                                 Text("Vertrag verhandeln").tag("vertragVerhandeln")
                             }
                             .pickerStyle(.menu)
+                            .foregroundColor(textColor)
+                            .tint(accentColor)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
-                            .background(cardBackgroundColor)
-                            .foregroundColor(textColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            // Status
                             Picker("Status", selection: $status) {
                                 Text("Geplant").tag("geplant")
                                 Text("Abgeschlossen").tag("abgeschlossen")
                             }
                             .pickerStyle(.menu)
+                            .foregroundColor(textColor)
+                            .tint(accentColor)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
-                            .background(cardBackgroundColor)
-                            .foregroundColor(textColor)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            // Datum
                             DatePicker("Datum", selection: $datum, displayedComponents: [.date, .hourAndMinute])
                                 .foregroundColor(textColor)
-                                .accentColor(accentColor)
+                                .tint(accentColor)
                                 .padding(.vertical, 8)
                                 .padding(.horizontal, 12)
-                                .background(cardBackgroundColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            // Notizen
                             TextField("Notizen", text: $notizen, axis: .vertical)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Erfolgschance
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                             TextField("Erfolgschance (%)", text: $erfolgschance)
                                 .keyboardType(.numberPad)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
-
-                            // Checkliste
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                             TextField("Checkliste (kommagetrennt)", text: $checklisteText, axis: .vertical)
-                                .padding()
-                                .background(cardBackgroundColor)
                                 .foregroundColor(textColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                                )
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                         }
-                        .padding()
-                        .background(cardBackgroundColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(accentColor.opacity(0.2), lineWidth: 1)
-                        )
-                        .padding(.horizontal)
+                        .padding(.vertical, 8)
                     }
-                    .padding(.bottom, 16)
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
                 }
-            }
-            .navigationTitle(step == nil ? "Schritt hinzufügen" : "Schritt bearbeiten")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
+                .listStyle(PlainListStyle())
+                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .tint(accentColor)
+                .foregroundColor(textColor)
+                .navigationTitle(step == nil ? "Schritt hinzufügen" : "Schritt bearbeiten")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { dismiss() }
+                            .foregroundColor(accentColor)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Speichern") {
+                            let checkliste = checklisteText.split(separator: ",")
+                                .map { String($0.trimmingCharacters(in: .whitespaces)) }
+                                .filter { !$0.isEmpty }
+                            let updatedStep = Step(
+                                id: step?.id ?? UUID().uuidString,
+                                typ: typ,
+                                status: status,
+                                datum: datum,
+                                notizen: notizen.isEmpty ? nil : notizen,
+                                erfolgschance: Int(erfolgschance),
+                                checkliste: checkliste.isEmpty ? nil : checkliste
+                            )
+                            onSave(updatedStep)
+                            dismiss()
+                        }
+                        .disabled(typ.isEmpty)
                         .foregroundColor(accentColor)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") {
-                        let checkliste = checklisteText.split(separator: ",")
-                            .map { String($0.trimmingCharacters(in: .whitespaces)) }
-                            .filter { !$0.isEmpty }
-                        let updatedStep = Step(
-                            id: step?.id ?? UUID().uuidString,
-                            typ: typ,
-                            status: status,
-                            datum: datum,
-                            notizen: notizen.isEmpty ? nil : notizen,
-                            erfolgschance: Int(erfolgschance),
-                            checkliste: checkliste.isEmpty ? nil : checkliste
-                        )
-                        onSave(updatedStep)
-                        dismiss()
                     }
-                    .foregroundColor(typ.isEmpty ? secondaryTextColor : accentColor)
-                    .disabled(typ.isEmpty)
                 }
             }
         }

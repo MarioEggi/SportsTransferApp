@@ -9,15 +9,26 @@ struct ContractListView: View {
     @State private var newContract: Contract = defaultContract()
     @State private var errorMessage = ""
 
+    // Farben für das dunkle Design
+    private let backgroundColor = Color(hex: "#1C2526")
+    private let cardBackgroundColor = Color(hex: "#2A3439")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#E0E0E0")
+    private let secondaryTextColor = Color(hex: "#B0BEC5")
+
     var body: some View {
         NavigationStack {
-            contractList
-                .navigationTitle(isEditing ? "Vertrag bearbeiten" : "Vertragsübersicht")
-                .foregroundColor(.white)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                VStack(spacing: 0) {
+                    HStack {
+                        Text(isEditing ? "Vertrag bearbeiten" : "Verträge")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(textColor)
+                        Spacer()
                         if authManager.userRole == .mitarbeiter {
-                            Button("Neuen Vertrag anlegen") {
+                            Button(action: {
                                 if authManager.isLoggedIn {
                                     showingAddContract = true
                                     isEditing = false
@@ -25,11 +36,65 @@ struct ContractListView: View {
                                 } else {
                                     errorMessage = "Du musst angemeldet sein."
                                 }
+                            }) {
+                                Image(systemName: "plus")
+                                    .foregroundColor(accentColor)
                             }
-                            .foregroundColor(.white)
                             .disabled(!authManager.isLoggedIn)
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.top, 10)
+
+                    List {
+                        if viewModel.contracts.isEmpty && !viewModel.isLoading {
+                            Text("Keine Verträge gefunden.")
+                                .foregroundColor(secondaryTextColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .listRowBackground(backgroundColor)
+                        } else {
+                            ForEach(viewModel.contracts) { contract in
+                                ContractRowView(
+                                    contract: contract,
+                                    viewModel: viewModel,
+                                    onDelete: {
+                                        if authManager.userRole == .mitarbeiter {
+                                            Task { await viewModel.deleteContract(contract) }
+                                        }
+                                    },
+                                    onEdit: {
+                                        if authManager.userRole == .mitarbeiter {
+                                            isEditing = true
+                                            newContract = contract
+                                            showingAddContract = true
+                                        }
+                                    },
+                                    isLast: contract == viewModel.contracts.last
+                                )
+                                .listRowBackground(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(cardBackgroundColor)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                                        )
+                                        .padding(.vertical, 2)
+                                )
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                            }
+                            if viewModel.isLoading {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                                    .tint(accentColor)
+                                    .listRowBackground(backgroundColor)
+                            }
+                        }
+                    }
+                    .listStyle(PlainListStyle())
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundColor)
+                    .padding(.horizontal)
                 }
                 .sheet(isPresented: $showingAddContract) {
                     AddContractView(
@@ -54,9 +119,9 @@ struct ContractListView: View {
                 }
                 .alert(isPresented: .constant(!errorMessage.isEmpty)) {
                     Alert(
-                        title: Text("Fehler").foregroundColor(.white),
-                        message: Text(errorMessage).foregroundColor(.white),
-                        dismissButton: .default(Text("OK").foregroundColor(.white)) {
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) {
                             errorMessage = ""
                         }
                     )
@@ -64,48 +129,9 @@ struct ContractListView: View {
                 .task {
                     await viewModel.loadContracts()
                 }
-                .background(Color.black)
-        }
-    }
-
-    private var contractList: some View {
-        List {
-            ForEach(viewModel.contracts) { contract in
-                ContractRowView(
-                    contract: contract,
-                    viewModel: viewModel,
-                    onDelete: {
-                        if authManager.userRole == .mitarbeiter {
-                            Task { await viewModel.deleteContract(contract) }
-                        }
-                    },
-                    onEdit: {
-                        if authManager.userRole == .mitarbeiter {
-                            isEditing = true
-                            newContract = contract
-                            showingAddContract = true
-                        }
-                    },
-                    isLast: contract == viewModel.contracts.last
-                )
-                .listRowBackground(Color.gray.opacity(0.2))
-            }
-            if viewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .tint(.white)
-                    .listRowBackground(Color.black)
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.black)
     }
-
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter
-    }()
 
     private func resetNewContract() {
         newContract = ContractListView.defaultContract()
@@ -131,6 +157,12 @@ struct ContractRowView: View {
     let onEdit: () -> Void
     let isLast: Bool
     @EnvironmentObject var authManager: AuthManager
+
+    // Farben für das dunkle Design
+    private let textColor = Color(hex: "#E0E0E0")
+    private let secondaryTextColor = Color(hex: "#B0BEC5")
+    private let accentColor = Color(hex: "#00C4B4")
+
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -138,11 +170,16 @@ struct ContractRowView: View {
     }()
 
     var body: some View {
-        VStack(alignment: .leading) {
-            clientText
-            vereinText
-            endDatumText
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                clientText
+                vereinText
+                endDatumText
+            }
+            Spacer()
         }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
         .swipeActions {
             if authManager.userRole == .mitarbeiter {
                 Button(role: .destructive, action: onDelete) {
@@ -168,11 +205,11 @@ struct ContractRowView: View {
            let client = viewModel.clients.first(where: { $0.id == clientID }) {
             Text("\(client.vorname) \(client.name)")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
         } else {
             Text("Unbekannt")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(textColor)
         }
     }
 
@@ -180,10 +217,12 @@ struct ContractRowView: View {
         if let vereinID = contract.vereinID,
            let club = viewModel.clubs.first(where: { $0.name == vereinID }) {
             Text(club.name)
-                .foregroundColor(.white)
+                .font(.caption)
+                .foregroundColor(secondaryTextColor)
         } else {
             Text("Unbekannt")
-                .foregroundColor(.white)
+                .font(.caption)
+                .foregroundColor(secondaryTextColor)
         }
     }
 
@@ -191,7 +230,8 @@ struct ContractRowView: View {
         Group {
             if let endDatum = contract.endDatum {
                 Text("Ende: \(dateFormatter.string(from: endDatum))")
-                    .foregroundColor(.white)
+                    .font(.caption)
+                    .foregroundColor(secondaryTextColor)
             } else {
                 EmptyView()
             }

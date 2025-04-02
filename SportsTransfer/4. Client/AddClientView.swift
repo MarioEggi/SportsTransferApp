@@ -45,254 +45,418 @@ struct AddClientView: View {
     @State private var showingCVPicker = false
     @State private var showingVideoPicker = false
 
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5") // Sehr helles Grau
+    private let cardBackgroundColor = Color(hex: "#E0E0E0") // Leicht dunkleres Grau für Karten
+    private let accentColor = Color(hex: "#00C4B4") // Akzentfarbe bleibt gleich
+    private let textColor = Color(hex: "#333333") // Dunkle Textfarbe
+    private let secondaryTextColor = Color(hex: "#666666") // Mittleres Grau für sekundären Text
+
+    var onSave: (() -> Void)?
+
     var body: some View {
         NavigationView {
-            Form {
-                clientTypeSection
-                clientDataSection
-                if typ == "Spieler" || typ == "Spielerin" {
-                    positionSection
-                }
-                contactInfoSection
-                transfermarktSection
-                additionalInfoSection
-            }
-            .navigationTitle("Neuer Klient")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Abbrechen") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Speichern") {
-                        Task { await saveClient() }
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                List {
+                    clientTypeSection
+                    clientDataSection
+                    if typ == "Spieler" || typ == "Spielerin" {
+                        positionSection
                     }
-                    .disabled(!isValidClient())
+                    contactInfoSection
+                    transfermarktSection
+                    additionalInfoSection
                 }
-            }
-            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-                Alert(
-                    title: Text("Fehler"),
-                    message: Text(errorMessage),
-                    dismissButton: .default(Text("OK")) { errorMessage = "" }
-                )
-            }
-            .onChange(of: selectedPhoto) { _ in
-                Task { await loadSelectedImage() }
-            }
-            .sheet(isPresented: $showingCVPicker) {
-                DocumentPicker(
-                    allowedContentTypes: [.pdf, .text],
-                    onPick: { url in
-                        Task { await loadSpielerCV(from: url) }
+                .listStyle(PlainListStyle())
+                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                .listRowSeparator(.hidden)
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .tint(accentColor)
+                .foregroundColor(textColor)
+                .navigationTitle("Neuer Klient")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { dismiss() }
+                            .foregroundColor(accentColor)
                     }
-                )
-            }
-            .sheet(isPresented: $showingVideoPicker) {
-                DocumentPicker(
-                    allowedContentTypes: [.movie],
-                    onPick: { url in
-                        Task { await loadVideo(from: url) }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Speichern") {
+                            Task { await saveClient() }
+                        }
+                        .disabled(!isValidClient())
+                        .foregroundColor(accentColor)
                     }
-                )
-            }
-            .task {
-                await loadClubOptions()
-                await loadSponsors()
+                }
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) { errorMessage = "" }
+                    )
+                }
+                .onChange(of: selectedPhoto) { _ in
+                    Task { await loadSelectedImage() }
+                }
+                .sheet(isPresented: $showingCVPicker) {
+                    DocumentPicker(
+                        allowedContentTypes: [.pdf, .text],
+                        onPick: { url in
+                            Task { await loadSpielerCV(from: url) }
+                        }
+                    )
+                }
+                .sheet(isPresented: $showingVideoPicker) {
+                    DocumentPicker(
+                        allowedContentTypes: [.movie],
+                        onPick: { url in
+                            Task { await loadVideo(from: url) }
+                        }
+                    )
+                }
+                .task {
+                    await loadClubOptions()
+                    await loadSponsors()
+                }
             }
         }
     }
 
     private var clientTypeSection: some View {
-        Section(header: Text("Kliententyp")) {
-            Picker("Typ", selection: $typ) {
-                Text("Spieler").tag("Spieler")
-                Text("Spielerin").tag("Spielerin")
-                Text("Trainer").tag("Trainer")
-                Text("Sonstige").tag("Sonstige")
+        Section(header: Text("Kliententyp").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                Picker("Typ", selection: $typ) {
+                    Text("Spieler").tag("Spieler")
+                    Text("Spielerin").tag("Spielerin")
+                    Text("Trainer").tag("Trainer")
+                    Text("Sonstige").tag("Sonstige")
+                }
+                .pickerStyle(.segmented)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                Picker("Geschlecht", selection: $geschlecht) {
+                    Text("Männlich").tag("männlich")
+                    Text("Weiblich").tag("weiblich")
+                }
+                .pickerStyle(.segmented)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
             }
-            .pickerStyle(.segmented)
-            Picker("Geschlecht", selection: $geschlecht) {
-                Text("Männlich").tag("männlich")
-                Text("Weiblich").tag("weiblich")
-            }
-            .pickerStyle(.segmented)
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var clientDataSection: some View {
-        Section(header: Text("Klientendaten")) {
-            TextField("Vorname", text: $vorname)
-            TextField("Name", text: $name)
-            DatePicker("Geburtsdatum", selection: $geburtsdatum, displayedComponents: .date)
-                .datePickerStyle(.compact)
-            Picker("Verein", selection: $vereinID) {
-                Text("Kein Verein").tag(String?.none)
-                ForEach(clubOptions.filter { $0.abteilungForGender(geschlecht) != nil }) { club in
-                    Text(club.name).tag(club.id as String?)
+        Section(header: Text("Klientendaten").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField("Vorname", text: $vorname)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Name", text: $name)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                DatePicker("Geburtsdatum", selection: $geburtsdatum, displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .foregroundColor(textColor)
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                Picker("Verein", selection: $vereinID) {
+                    Text("Kein Verein").tag(String?.none)
+                    ForEach(clubOptions.filter { $0.abteilungForGender(geschlecht) != nil }) { club in
+                        Text(club.name).tag(club.id as String?)
+                    }
                 }
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .onChange(of: vereinID) { _ in updateLeagueAndAbteilung() }
+                Text("Liga: \(liga ?? "Keine")")
+                    .foregroundColor(secondaryTextColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                DatePicker("Vertragslaufzeit", selection: $vertragBis, displayedComponents: .date)
+                    .foregroundColor(textColor)
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Vertragsoptionen", text: $vertragsOptionen)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Gehalt (€)", text: $gehalt)
+                    .keyboardType(.decimalPad)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Größe (cm)", text: $groesse)
+                    .keyboardType(.numberPad)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                profileImagePicker
+                nationalityPicker
+                TextField("Nationalmannschaft", text: $nationalmannschaft)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
             }
-            .pickerStyle(.menu)
-            .onChange(of: vereinID) { _ in updateLeagueAndAbteilung() }
-            Text("Liga: \(liga ?? "Keine")")
-                .foregroundColor(.gray)
-            DatePicker("Vertragslaufzeit", selection: $vertragBis, displayedComponents: .date)
-            TextField("Vertragsoptionen", text: $vertragsOptionen)
-            TextField("Gehalt (€)", text: $gehalt)
-                .keyboardType(.decimalPad)
-            TextField("Größe (cm)", text: $groesse)
-                .keyboardType(.numberPad)
-            profileImagePicker
-            nationalityPicker
-            TextField("Nationalmannschaft", text: $nationalmannschaft)
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var positionSection: some View {
-        Section(header: Text("Positionen")) {
-            Button(action: { showingPositionPicker = true }) {
-                Text(positionFeld.isEmpty ? "Positionen auswählen" : positionFeld.joined(separator: ", "))
-                    .foregroundColor(positionFeld.isEmpty ? .gray : .black)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .sheet(isPresented: $showingPositionPicker) {
-                NavigationView {
-                    MultiPicker(
-                        title: "Positionen auswählen",
-                        selection: $positionFeld,
-                        options: Constants.positionOptions,
-                        isNationalityPicker: false
-                    )
-                    .navigationTitle("Positionen")
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Fertig") { showingPositionPicker = false }
+        Section(header: Text("Positionen").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                Button(action: { showingPositionPicker = true }) {
+                    Text(positionFeld.isEmpty ? "Positionen auswählen" : positionFeld.joined(separator: ", "))
+                        .foregroundColor(positionFeld.isEmpty ? secondaryTextColor : textColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                }
+                .sheet(isPresented: $showingPositionPicker) {
+                    NavigationView {
+                        MultiPicker(
+                            title: "Positionen auswählen",
+                            selection: $positionFeld,
+                            options: Constants.positionOptions,
+                            isNationalityPicker: false
+                        )
+                        .navigationTitle("Positionen")
+                        .foregroundColor(textColor)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Fertig") { showingPositionPicker = false }
+                                    .foregroundColor(accentColor)
+                            }
                         }
+                        .background(backgroundColor)
                     }
                 }
-            }
-            Picker("Schuhmarke", selection: $schuhmarke) {
-                Text("Keine Marke").tag("")
-                ForEach(sponsorOptions.filter { $0.category == "Sportartikelhersteller" }) { sponsor in
-                    Text(sponsor.name).tag(sponsor.name)
+                Picker("Schuhmarke", selection: $schuhmarke) {
+                    Text("Keine Marke").tag("")
+                    ForEach(sponsorOptions.filter { $0.category == "Sportartikelhersteller" }) { sponsor in
+                        Text(sponsor.name).tag(sponsor.name)
+                    }
                 }
-            }
-            .pickerStyle(.menu)
-            Picker("Starker Fuß", selection: $starkerFuss) {
-                Text("Nicht angegeben").tag("")
-                ForEach(Constants.strongFootOptions, id: \.self) { foot in
-                    Text(foot).tag(foot)
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                Picker("Starker Fuß", selection: $starkerFuss) {
+                    Text("Nicht angegeben").tag("")
+                    ForEach(Constants.strongFootOptions, id: \.self) { foot in
+                        Text(foot).tag(foot)
+                    }
                 }
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
             }
-            .pickerStyle(.menu)
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var contactInfoSection: some View {
-        Section(header: Text("Kontaktinformationen")) {
-            TextField("Telefon", text: $kontaktTelefon)
-            TextField("E-Mail", text: $kontaktEmail)
-            TextField("Adresse", text: $adresse)
+        Section(header: Text("Kontaktinformationen").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField("Telefon", text: $kontaktTelefon)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("E-Mail", text: $kontaktEmail)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                TextField("Adresse", text: $adresse)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+            }
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var transfermarktSection: some View {
-        Section(header: Text(geschlecht == "männlich" ? "Transfermarkt" : "Soccerdonna")) {
-            TextField(geschlecht == "männlich" ? "Transfermarkt-ID" : "Soccerdonna-ID", text: $transfermarktID)
-                .keyboardType(.numberPad)
-                .customPlaceholder(when: transfermarktID.isEmpty) {
-                    Text(geschlecht == "männlich" ? "z. B. 690425" : "z. B. 31388")
-                        .foregroundColor(.gray)
-                }
-                .onChange(of: transfermarktID) { newID in
-                    if !newID.isEmpty {
-                        Task {
-                            await MainActor.run { isLoadingTransfermarkt = true }
-                            do {
-                                let playerData: PlayerData
-                                if geschlecht == "männlich" {
-                                    playerData = try await TransfermarktService.shared.fetchPlayerData(forPlayerID: newID)
-                                } else {
-                                    playerData = try await SoccerdonnaService.shared.fetchPlayerData(forPlayerID: newID)
-                                }
-                                await MainActor.run {
-                                    isLoadingTransfermarkt = false
-                                    transfermarktError = ""
-                                    if vorname.isEmpty, let fullName = playerData.name {
-                                        let parts = fullName.split(separator: " ")
-                                        if parts.count >= 2 {
-                                            vorname = String(parts[0])
-                                            name = String(parts.dropFirst().joined(separator: " "))
-                                        } else {
-                                            name = fullName
+        Section(header: Text(geschlecht == "männlich" ? "Transfermarkt" : "Soccerdonna").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField(geschlecht == "männlich" ? "Transfermarkt-ID" : "Soccerdonna-ID", text: $transfermarktID)
+                    .keyboardType(.numberPad)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .customPlaceholder(when: transfermarktID.isEmpty) {
+                        Text(geschlecht == "männlich" ? "z. B. 690425" : "z. B. 31388")
+                            .foregroundColor(secondaryTextColor)
+                    }
+                    .onChange(of: transfermarktID) { newID in
+                        if !newID.isEmpty {
+                            Task {
+                                await MainActor.run { isLoadingTransfermarkt = true }
+                                do {
+                                    let playerData: PlayerData
+                                    if geschlecht == "männlich" {
+                                        playerData = try await TransfermarktService.shared.fetchPlayerData(forPlayerID: newID)
+                                    } else {
+                                        playerData = try await SoccerdonnaService.shared.fetchPlayerData(forPlayerID: newID)
+                                    }
+                                    await MainActor.run {
+                                        isLoadingTransfermarkt = false
+                                        transfermarktError = ""
+                                        if vorname.isEmpty, let fullName = playerData.name {
+                                            let parts = fullName.split(separator: " ")
+                                            if parts.count >= 2 {
+                                                vorname = String(parts[0])
+                                                name = String(parts.dropFirst().joined(separator: " "))
+                                            } else {
+                                                name = fullName
+                                            }
+                                        }
+                                        if positionFeld.isEmpty, let position = playerData.position {
+                                            positionFeld = [position]
+                                        }
+                                        if selectedNationalities.isEmpty, let nationalities = playerData.nationalitaet {
+                                            selectedNationalities = nationalities
+                                        }
+                                        if geburtsdatum == Date(), let birthdate = playerData.geburtsdatum {
+                                            geburtsdatum = birthdate
+                                        }
+                                        if vereinID == nil, let clubID = playerData.vereinID,
+                                           let club = clubOptions.first(where: { $0.name == clubID }) {
+                                            vereinID = club.id
+                                            updateLeagueAndAbteilung()
+                                        }
+                                        if vertragBis == Date(), let contractEnd = playerData.contractEnd {
+                                            vertragBis = contractEnd
                                         }
                                     }
-                                    if positionFeld.isEmpty, let position = playerData.position {
-                                        positionFeld = [position]
+                                } catch {
+                                    await MainActor.run {
+                                        isLoadingTransfermarkt = false
+                                        transfermarktError = "Fehler beim Abrufen der Daten: \(error.localizedDescription)"
                                     }
-                                    if selectedNationalities.isEmpty, let nationalities = playerData.nationalitaet {
-                                        selectedNationalities = nationalities
-                                    }
-                                    if geburtsdatum == Date(), let birthdate = playerData.geburtsdatum {
-                                        geburtsdatum = birthdate
-                                    }
-                                    if vereinID == nil, let clubID = playerData.vereinID,
-                                       let club = clubOptions.first(where: { $0.name == clubID }) {
-                                        vereinID = club.id
-                                        updateLeagueAndAbteilung()
-                                    }
-                                    if vertragBis == Date(), let contractEnd = playerData.contractEnd {
-                                        vertragBis = contractEnd
-                                    }
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    isLoadingTransfermarkt = false
-                                    transfermarktError = "Fehler beim Abrufen der Daten: \(error.localizedDescription)"
                                 }
                             }
                         }
                     }
+                if isLoadingTransfermarkt {
+                    ProgressView("Lade Daten...")
+                        .tint(accentColor)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
                 }
-            if isLoadingTransfermarkt {
-                ProgressView("Lade Daten...")
+                if !transfermarktError.isEmpty {
+                    Text(transfermarktError)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                }
             }
-            if !transfermarktError.isEmpty {
-                Text(transfermarktError)
-                    .foregroundColor(.red)
-                    .font(.caption)
-            }
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private var profileImagePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Profilbild")
                 .font(.subheadline)
+                .foregroundColor(textColor)
             PhotosPicker(
                 selection: $selectedPhoto,
                 matching: .images,
                 photoLibrary: .shared()
             ) {
                 Label("Bild auswählen", systemImage: "photo")
-                    .foregroundColor(.blue)
+                    .foregroundColor(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
             }
             if isUploadingImage {
                 ProgressView("Bild wird hochgeladen...")
+                    .tint(accentColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
             } else if let image = profileImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
                     .frame(height: 100)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                    )
             }
         }
+        .padding(.vertical, 8)
     }
 
     private var nationalityPicker: some View {
         Button(action: { showingNationalityPicker = true }) {
             Text(selectedNationalities.isEmpty ? "Nationalitäten auswählen" : selectedNationalities.joined(separator: ", "))
-                .foregroundColor(selectedNationalities.isEmpty ? .gray : .black)
+                .foregroundColor(selectedNationalities.isEmpty ? secondaryTextColor : textColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
         }
         .sheet(isPresented: $showingNationalityPicker) {
             NavigationView {
@@ -303,51 +467,84 @@ struct AddClientView: View {
                     isNationalityPicker: true
                 )
                 .navigationTitle("Nationalitäten")
+                .foregroundColor(textColor)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Fertig") { showingNationalityPicker = false }
+                            .foregroundColor(accentColor)
                     }
                 }
+                .background(backgroundColor)
             }
         }
+        .padding(.vertical, 8)
     }
 
     private var additionalInfoSection: some View {
-        Section(header: Text("Zusätzliche Informationen")) {
-            TextField("Konditionen", text: $konditionen)
-            Picker("Art", selection: $art) {
-                Text("Nicht angegeben").tag("")
-                Text("Vereinswechsel").tag("Vereinswechsel")
-                Text("Vertragsverlängerung").tag("Vertragsverlängerung")
+        Section(header: Text("Zusätzliche Informationen").foregroundColor(textColor)) {
+            VStack(spacing: 10) {
+                TextField("Konditionen", text: $konditionen)
+                    .foregroundColor(textColor)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                Picker("Art", selection: $art) {
+                    Text("Nicht angegeben").tag("")
+                    Text("Vereinswechsel").tag("Vereinswechsel")
+                    Text("Vertragsverlängerung").tag("Vertragsverlängerung")
+                }
+                .pickerStyle(.menu)
+                .foregroundColor(textColor)
+                .tint(accentColor)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Spieler-CV")
+                        .font(.subheadline)
+                        .foregroundColor(textColor)
+                    Button(action: { showingCVPicker = true }) {
+                        Label("CV auswählen", systemImage: "doc")
+                            .foregroundColor(accentColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                    if let spielerCVURL = spielerCVURL {
+                        Text("Hochgeladen: \(spielerCVURL.split(separator: "/").last ?? "")")
+                            .font(.caption)
+                            .foregroundColor(secondaryTextColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Video")
+                        .font(.subheadline)
+                        .foregroundColor(textColor)
+                    Button(action: { showingVideoPicker = true }) {
+                        Label("Video auswählen", systemImage: "video")
+                            .foregroundColor(accentColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                    if let videoURL = videoURL {
+                        Text("Hochgeladen: \(videoURL.split(separator: "/").last ?? "")")
+                            .font(.caption)
+                            .foregroundColor(secondaryTextColor)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                    }
+                }
             }
-            .pickerStyle(.menu)
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Spieler-CV")
-                    .font(.subheadline)
-                Button(action: { showingCVPicker = true }) {
-                    Label("CV auswählen", systemImage: "doc")
-                        .foregroundColor(.blue)
-                }
-                if let spielerCVURL = spielerCVURL {
-                    Text("Hochgeladen: \(spielerCVURL.split(separator: "/").last ?? "")")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Video")
-                    .font(.subheadline)
-                Button(action: { showingVideoPicker = true }) {
-                    Label("Video auswählen", systemImage: "video")
-                        .foregroundColor(.blue)
-                }
-                if let videoURL = videoURL {
-                    Text("Hochgeladen: \(videoURL.split(separator: "/").last ?? "")")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-            }
+            .padding(.vertical, 8)
         }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(cardBackgroundColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                )
+                .padding(.vertical, 2)
+        )
     }
 
     private func loadClubOptions() async {
@@ -403,7 +600,7 @@ struct AddClientView: View {
             }
         } catch {
             await MainActor.run {
-                errorMessage = "Fehler beim Laden des Bildes: \(error.localizedDescription)"
+                errorMessage = "Fehler beim Laden des Bildes;\(error.localizedDescription)"
             }
         }
     }
@@ -502,8 +699,11 @@ struct AddClientView: View {
                 newClient.video = url
             }
             try await FirestoreManager.shared.updateClient(client: newClient)
-            await MainActor.run { isUploadingImage = false }
-            dismiss()
+            await MainActor.run {
+                isUploadingImage = false
+                onSave?()
+                dismiss()
+            }
         } catch {
             await MainActor.run {
                 errorMessage = "Fehler beim Speichern: \(error.localizedDescription)"

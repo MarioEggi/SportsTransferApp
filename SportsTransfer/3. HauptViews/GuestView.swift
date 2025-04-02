@@ -1,3 +1,6 @@
+//
+//  GuestView.swift
+
 import SwiftUI
 import FirebaseFirestore
 
@@ -18,7 +21,6 @@ struct GuestView: View {
 
     private var tabs: [(title: String, icon: String, view: AnyView)] {
         [
-            ("Dashboard", "chart.bar", AnyView(DashboardView())),
             ("Klienten", "person.2", AnyView(ClientListView())),
             ("Verträge", "doc.text", AnyView(ContractListView())),
             ("Vereine", "building.2", AnyView(ClubListView())),
@@ -26,7 +28,6 @@ struct GuestView: View {
             ("Spiele", "sportscourt", AnyView(MatchListView())),
             ("Sponsoren", "dollarsign.circle", AnyView(SponsorListView())),
             ("Funktionäre", "person.badge.key", AnyView(FunktionärListView())),
-            ("Chat", "bubble.left", AnyView(ChatView()))
         ]
     }
 

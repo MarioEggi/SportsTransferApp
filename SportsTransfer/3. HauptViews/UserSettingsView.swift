@@ -4,7 +4,6 @@ import FirebaseFirestore
 
 struct UserSettingsView: View {
     @EnvironmentObject var authManager: AuthManager
-    @Environment(\.colorScheme) var colorScheme
     @Binding var isPresented: Bool
     @State private var name: String = ""
     @State private var vorname: String = ""
@@ -16,108 +15,208 @@ struct UserSettingsView: View {
     @State private var telefonnummer: String = ""
     @State private var email: String = ""
     @State private var newPassword: String = ""
-    @State private var currentPassword: String = "" // Für Re-Authentifizierung
+    @State private var currentPassword: String = ""
     @State private var errorMessage: String = ""
     @State private var isLoading: Bool = false
-    @State private var isEditing: Bool = false // Bearbeitungsmodus
+    @State private var isEditing: Bool = false
+    @State private var user: User?
+
+    // Farben für das helle Design
+    private let backgroundColor = Color(hex: "#F5F5F5")
+    private let cardBackgroundColor = Color(hex: "#E0E0E0")
+    private let accentColor = Color(hex: "#00C4B4")
+    private let textColor = Color(hex: "#333333")
+    private let secondaryTextColor = Color(hex: "#666666")
 
     private let db = Firestore.firestore()
 
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("Persönliche Daten")) {
-                    TextField("Name", text: $name)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("Vorname", text: $vorname)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("Straße", text: $strasse)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("Nr.", text: $nr)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("PLZ", text: $plz)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("Ort", text: $ort)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("Land", text: $land)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    TextField("Telefonnummer", text: $telefonnummer)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.done)
-                }
-                
-                Section(header: Text("Kontoinformationen")) {
-                    TextField("E-Mail", text: $email)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    SecureField("Neues Passwort", text: $newPassword)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.next)
-                    SecureField("Aktuelles Passwort", text: $currentPassword)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .disabled(!isEditing)
-                        .submitLabel(.done)
-                    Button("Passwort und E-Mail ändern") {
-                        updateCredentials()
-                    }
-                    .disabled(!isEditing || (email.isEmpty && newPassword.isEmpty) || isLoading)
-                }
-                
-                Section {
-                    Button(isEditing ? "Speichern" : "Bearbeiten") {
-                        if isEditing {
-                            saveUserData()
+            ZStack {
+                backgroundColor.edgesIgnoringSafeArea(.all)
+                List {
+                    Section(header: Text("Gamify").foregroundColor(textColor)) {
+                        if let user = user {
+                            HStack {
+                                Text("Punkte: \(user.points ?? 0)")
+                                    .foregroundColor(textColor)
+                                Spacer()
+                                NavigationLink(destination: LeaderboardView()) {
+                                    Text("Rangliste anzeigen")
+                                        .foregroundColor(accentColor)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
                         } else {
-                            isEditing = true
+                            Text("Punkte werden geladen...")
+                                .foregroundColor(secondaryTextColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
                         }
                     }
-                    .disabled(isLoading)
-                    
-                    Button("Abmelden") {
-                        authManager.signOut()
-                        isPresented = false
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
+
+                    Section(header: Text("Persönliche Daten").foregroundColor(textColor)) {
+                        VStack(spacing: 10) {
+                            TextField("Name", text: $name)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("Vorname", text: $vorname)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("Straße", text: $strasse)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("Nr.", text: $nr)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("PLZ", text: $plz)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("Ort", text: $ort)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("Land", text: $land)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            TextField("Telefonnummer", text: $telefonnummer)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                        }
+                        .padding(.vertical, 8)
                     }
-                    .foregroundColor(.red)
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
+
+                    Section(header: Text("Kontoinformationen").foregroundColor(textColor)) {
+                        VStack(spacing: 10) {
+                            TextField("E-Mail", text: $email)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            SecureField("Neues Passwort", text: $newPassword)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            SecureField("Aktuelles Passwort", text: $currentPassword)
+                                .foregroundColor(textColor)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .disabled(!isEditing)
+                            Button("Passwort und E-Mail ändern") {
+                                updateCredentials()
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(accentColor)
+                            .foregroundColor(textColor)
+                            .cornerRadius(10)
+                            .disabled(!isEditing || (email.isEmpty && newPassword.isEmpty) || isLoading)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
+
+                    Section {
+                        Button(isEditing ? "Speichern" : "Bearbeiten") {
+                            if isEditing { saveUserData() } else { isEditing = true }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(accentColor)
+                        .foregroundColor(textColor)
+                        .cornerRadius(10)
+                        .disabled(isLoading)
+                        Button("Abmelden") {
+                            authManager.signOut()
+                            isPresented = false
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .foregroundColor(textColor)
+                        .cornerRadius(10)
+                    }
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(cardBackgroundColor)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                    )
                 }
-            }
-            .navigationTitle("Einstellungen")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Abbrechen") {
-                        isPresented = false
+                .listStyle(PlainListStyle())
+                .listRowInsets(EdgeInsets(top: 3, leading: 13, bottom: 3, trailing: 13))
+                .scrollContentBackground(.hidden)
+                .background(backgroundColor)
+                .tint(accentColor)
+                .foregroundColor(textColor)
+                .navigationTitle("Einstellungen")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Abbrechen") { isPresented = false }
+                            .foregroundColor(accentColor)
                     }
                 }
-            }
-            .alert(isPresented: .constant(!errorMessage.isEmpty)) {
-                Alert(
-                    title: Text("Fehler"),
-                    message: Text(errorMessage),
-                    dismissButton: .default(Text("OK")) { errorMessage = "" }
+                .alert(isPresented: .constant(!errorMessage.isEmpty)) {
+                    Alert(
+                        title: Text("Fehler").foregroundColor(textColor),
+                        message: Text(errorMessage).foregroundColor(secondaryTextColor),
+                        dismissButton: .default(Text("OK").foregroundColor(accentColor)) { errorMessage = "" }
+                    )
+                }
+                .task {
+                    await loadUserData()
+                    await loadUser()
+                }
+                .overlay(
+                    isLoading ? ProgressView("Speichere...").tint(accentColor) : nil
                 )
             }
-            .task {
-                await loadUserData()
-            }
-            .overlay(
-                isLoading ? ProgressView("Speichere...").progressViewStyle(CircularProgressViewStyle()) : nil
-            )
         }
     }
 
@@ -143,12 +242,21 @@ struct UserSettingsView: View {
         }
     }
 
+    private func loadUser() async {
+        guard let userID = authManager.userID else { return }
+        do {
+            let snapshot = try await db.collection("users").document(userID).getDocument()
+            user = try snapshot.data(as: User.self)
+        } catch {
+            errorMessage = "Fehler beim Laden des Benutzers: \(error.localizedDescription)"
+        }
+    }
+
     private func saveUserData() {
         guard let userID = authManager.userID else {
             errorMessage = "Kein Benutzer angemeldet"
             return
         }
-        // Validierung
         if name.isEmpty || vorname.isEmpty {
             errorMessage = "Name und Vorname sind Pflichtfelder"
             return
